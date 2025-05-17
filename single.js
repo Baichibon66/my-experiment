@@ -5,7 +5,7 @@ function getProlificPID() {
 }
 const prolificPID = getProlificPID();
 
-const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=XXXXXX"; // 替换为你的Completion Code
+const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=C1M6ISR3"; // 替换为你的Completion Code
 
 // ========== 1. 路径设置 ==========
 const IMAGE_PATH = "formalimages/"; // 图片文件夹（如需更改请修改此处）
@@ -170,19 +170,15 @@ function startExperiment() {
     stimulus: function() {
     return`
       <div style='font-size: 28px; text-align: center;'>
-        <!--  -->
-        <p>お疲れ様でした！スペースキーを押して終了してください。</p>
+        <p>お疲れ様でした！スペースキーを押して自省報告に進んでください。</p>
         <p style='font-size: 24px; margin-top: 40px;'>Total Score：${totalScore}pt</p>
       </div>
-      `;
+    `;
     },
     choices: [' '],
     trial_duration: null,
     css_classes: ['jspsych-content'],
-    on_finish: function() {
-      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
-    }
-    });
+  });
 
   // ========== 问卷调查界面 ==========
   // 请确保在HTML中引入以下插件：
@@ -284,7 +280,10 @@ function startExperiment() {
         columns: 60,
         required: false
       }
-    ]
+    ],
+    on_finish: function() {
+      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+    }
   });
 
   // ========== 启动实验 ==========
