@@ -1,4 +1,4 @@
-// ========== 获取Prolific PID ==========
+// ========== Prolific PID ==========
 function getProlificPID() {
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.get('PROLIFIC_PID') || 'NO_PID';
