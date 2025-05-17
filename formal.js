@@ -10,12 +10,12 @@ const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?c
 // ========== 1. 路径设置 ==========
 const IMAGE_PATH = "formalimages/"; // 图片文件夹（如需更改请修改此处）
 const TRIALS_XLSX_PATH = "experiment_data/formal_trials.csv"; // 试次表格（如需更改请修改此处）
-const OUTPUT_XLSX_NAME = "formal_choice_data.xlsx"; // 输出文件名（如需更改请修改此处）
+const OUTPUT_XLSX_NAME = "formal_choice_data.csv"; // 输出文件名（如需更改请修改此处）
 
 // ========== 2. jsPsych初始化与全局样式 ==========
 const jsPsych = initJsPsych({
   on_finish: function() {
-    jsPsych.data.get().localSave('xlsx', OUTPUT_XLSX_NAME);
+    jsPsych.data.get().localSave('csv', OUTPUT_XLSX_NAME);
   }
 });
 jsPsych.data.addProperties({prolificPID: prolificPID});
