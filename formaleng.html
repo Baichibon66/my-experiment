@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Gambling Game</title>
+  <!-- 引入jsPsych主库和插件 -->
+  <link rel="stylesheet" href="jspsych/dist/jspsych.css">
+  <script src="jspsych/dist/jspsych.js"></script>
+  <script src="jspsych/dist/plugin-html-keyboard-response.js"></script>
+  <!-- PapaParse用于读取Excel（CSV）文件 -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- 可选：如需支持xlsx直接读取，可引入SheetJS（但目前js用PapaParse读取CSV更简单） -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script> -->
+  <style>
+    body { background: black; color: white; }
+  </style>
+</head>
+<body>
+  <div id="jspsych-experiment"></div>
+  <script src="formaleng.js"></script>
+</body>
+</html>

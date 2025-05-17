@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>ギャンブルゲーム</title>
+  <!-- 引入jsPsych主库和插件 -->
+  <link rel="stylesheet" href="jspsych/dist/jspsych.css">
+  <script src="jspsych/dist/jspsych.js"></script>
+  <script src="jspsych/dist/plugin-html-keyboard-response.js"></script>
+  <!-- PapaParse用于读取Excel（CSV）文件 -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- 可选：如需支持xlsx直接读取，可引入SheetJS（但目前js用PapaParse读取CSV更简单） -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script> -->
+   <script src="jspsych/dist/plugin-survey-likert.js"></script>
+   <script src="jspsych/dist/plugin-survey-multi-choice.js"></script>
+   <script src="jspsych/dist/plugin-survey-text.js"></script>
+   <script src="jspsych/dist/plugin-survey-multi-select.js"></script>
+   
+  <style>
+    body { background: black; color: white; }
+    /* 让所有问卷题目prompt居中且加粗加大 */
+    .jspsych-survey-likert-question .jspsych-survey-likert-statement,
+    .jspsych-survey-multi-choice-question .jspsych-survey-multi-choice-text,
+    .jspsych-survey-text-question .jspsych-survey-text-question-text {
+        text-align: center !important;
+        font-size: 22px !important;
+        font-weight: bold !important;
+    }
+    /* 让问卷题目容器居中 */
+    .jspsych-survey-likert-question,
+    .jspsych-survey-multi-choice-question,
+    .jspsych-survey-text-question {
+        margin-left: auto !important;
+        margin-right: auto !important;
+        width: 100% !important;
+        max-width: 700px !important;
+        display: block !important;
+    }
+    /* 让整个问卷内容垂直居中（可选） */
+    .jspsych-content-wrapper {
+        display: flex !important;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 80vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="jspsych-experiment"></div>
+  <script src="single.js"></script>
+</body>
+</html>
