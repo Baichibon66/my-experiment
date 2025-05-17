@@ -5,17 +5,17 @@ function getProlificPID() {
 }
 const prolificPID = getProlificPID();
 
-const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=C1M6ISR3"; // 替换为你的Completion Code
+const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=C1M6ISR3"; // Completion Code
 
-// ========== 1. 路径设置 ==========
-const IMAGE_PATH = "formalimages/"; // 图片文件夹（如需更改请修改此处）
-const TRIALS_XLSX_PATH = "experiment_data/formal_trials.csv"; // 试次表格（如需更改请修改此处）
-const OUTPUT_XLSX_NAME = "formal_choice_data.csv"; // 输出文件名（如需更改请修改此处）
+// ========== 1. パス設定 ==========
+const IMAGE_PATH = "formalimages/"; // images folder
+const TRIALS_XLSX_PATH = "experiment_data/formal_trials.csv"; // pseudorandom　試行表（順、手がかりの図、桜について）
+const OUTPUT_XLSX_NAME = "formal_choice_data.xlsx"; // データ輸出
 
-// ========== 2. jsPsych初始化与全局样式 ==========
+// ========== 2. jsPsych全体設定 ==========
 const jsPsych = initJsPsych({
   on_finish: function() {
-    jsPsych.data.get().localSave('csv', OUTPUT_XLSX_NAME);
+    jsPsych.data.get().localSave('xlsx', OUTPUT_XLSX_NAME);
   }
 });
 jsPsych.data.addProperties({prolificPID: prolificPID});
@@ -28,7 +28,7 @@ const style = document.createElement('style');
 style.innerHTML = globalStyle;
 document.head.appendChild(style);
 
-// ========== 3. 读取试次表格 ==========
+// ========== 3. 試行表の読み込み ==========
 let trials = [];
 let timeline = [];
 let totalScore = 0;
@@ -45,7 +45,7 @@ Papa.parse(TRIALS_XLSX_PATH, {
 function startExperiment() {
   let isParticipantTurn = true;
   let trialIndex = 0;
-  // ========== 界面1：指导语 ==========
+  // ========== 画面1：支持语 ==========
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
@@ -61,18 +61,18 @@ function startExperiment() {
     css_classes: ['jspsych-content'],
   });
 
-  // ========== 界面2：初始分数 ==========
+  // ========== 画面2：初期点数 ==========
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='position: absolute; left: 20vw; top: 20vh; text-align: center;'>
         <div style='font-size: 48px;'>あなた</div>
-         <div style='height: 400px;'></div> <!-- 增加间隔，可调整高度 -->
+         <div style='height: 400px;'></div> <!-- 間隔 -->
         <div style='font-size: 48px;'>0</div>
       </div>
       <div style='position: absolute; right: 20vw; top: 20vh; text-align: center;'>
         <div style='font-size: 48px;'>相手</div>
-          <div style='height: 400px;'></div> <!-- 增加间隔，可调整高度 -->
+        <div style='height: 400px;'></div> <!-- 間隔 -->
         <div style='font-size: 48px;'>0</div>
       </div>
       <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);'>
@@ -87,12 +87,12 @@ function startExperiment() {
     css_classes: ['jspsych-content'],
   });
 
-  // ========== 4. 主体实验流程 ==========
-  for (let i = 0; i < 4; i++) {          //修改试次数量
+  // ========== 4. 主体実験の流れ ==========
+  for (let i = 0; i < 4; i++) {          //試行数設定
     const trial = trials[i % trials.length];
     if (isParticipantTurn) {
-      // ====== 被试试次 ======
-      // 界面3：刺激界面
+      // ====== 被験者試行 ======
+      // 画面3：手がかり画面
       timeline.push({
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `
@@ -111,7 +111,7 @@ function startExperiment() {
         trial_duration: Math.floor(Math.random() * 151) + 1000,
         css_classes: ['jspsych-content'],
       });
-      // 界面4：选择界面
+      // 画面4：選択画面
       timeline.push({
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `
@@ -150,7 +150,7 @@ function startExperiment() {
           data.opponentScore = trial.Fake_Score;
         }
       });
-      // 界面5：反馈界面
+      // 画面5：フィードバック画面
       timeline.push({
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `
@@ -163,19 +163,19 @@ function startExperiment() {
         trial_duration: 800,
         css_classes: ['jspsych-content'],
       });
-      // 界面6：分数界面
+      // 画面6：点数画面
       timeline.push({
         type: jsPsychHtmlKeyboardResponse,
         stimulus: function() {
         return`
           <div style='position: absolute; left: 20vw; top: 20vh; text-align: center;'>
             <div style='font-size: 48px;'>あなた</div>
-            <div style='height: 400px;'></div> <!-- 增加间隔，可调整高度 -->
+            <div style='height: 400px;'></div> <!-- 間隔 -->
             <div style='font-size: 48px;'>${totalScore}</div>
           </div>
           <div style='position: absolute; right: 20vw; top: 20vh; text-align: center;'>
             <div style='font-size: 48px;'>相手</div>
-            <div style='height: 400px;'></div> <!-- 增加间隔，可调整高度 -->
+            <div style='height: 400px;'></div> <!-- 間隔 -->
             <div style='font-size: 48px;'>${trial.Fake_Score}</div>
           </div>
           <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);'>
@@ -191,8 +191,8 @@ function startExperiment() {
       css_classes: ['jspsych-content'],
       });
     } else {
-      // ====== 对手试次 ======
-      // 界面7：对手刺激界面
+      // ====== 相手試行 ======
+      // 画面7：相手手がかり画面
       timeline.push({
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `
@@ -211,7 +211,7 @@ function startExperiment() {
         trial_duration: Math.floor(Math.random() * 151) + 1000,
         css_classes: ['jspsych-content'],
       });
-      // 界面8：对手选择界面
+      // 画面8：相手選択画面
       timeline.push({
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `
@@ -224,7 +224,7 @@ function startExperiment() {
         trial_duration: Math.floor(Math.random() * 2001) + 1000,
         css_classes: ['jspsych-content'],
       });
-      // 界面9：对手反馈界面
+      // 画面9：相手フィードバック画面
       timeline.push({
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `
@@ -237,19 +237,19 @@ function startExperiment() {
         trial_duration: 800,
         css_classes: ['jspsych-content'],
       });
-      // 界面10：对手分数界面
+      // 画面10：相手点数画面
       timeline.push({
         type: jsPsychHtmlKeyboardResponse,
         stimulus: function() {
         return`
           <div style='position: absolute; left: 20vw; top: 20vh; text-align: center;'>
             <div style='font-size: 48px;'>あなた</div>
-            <div style='height: 400px;'></div> <!-- 增加间隔，可调整高度 -->
+            <div style='height: 400px;'></div> <!-- 間隔 -->
             <div style='font-size: 48px;'>${totalScore}</div>
           </div>
           <div style='position: absolute; right: 20vw; top: 20vh; text-align: center;'>
             <div style='font-size: 48px;'>相手</div>
-            <div style='height: 400px;'></div> <!-- 增加间隔，可调整高度 -->
+            <div style='height: 400px;'></div> <!-- 間隔 -->
             <div style='font-size: 48px;'>${trial.Fake_Score}</div> 
           </div>
           <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);'>
@@ -268,7 +268,7 @@ function startExperiment() {
     isParticipantTurn = !isParticipantTurn;
   }
 
-  // ========== 界面11：结束语 ==========
+  // ========== 画面11：終了語 ==========
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: function() {
@@ -284,13 +284,13 @@ function startExperiment() {
     css_classes: ['jspsych-content'],
   });
   
-  // ========== 问卷调查界面 ==========
-  // 请确保在HTML中引入以下插件：
+  // ========== 自省報告 ==========
+  // 以下のプラグインをHTMLにインポートしてください：
   // <script src="jspsych/dist/plugin-survey-likert.js"></script>
   // <script src="jspsych/dist/plugin-survey-multi-choice.js"></script>
   // <script src="jspsych/dist/plugin-survey-text.js"></script>
 
-  // 问卷1：選択と報酬の関係
+  // 報告1：選択と報酬の関係
   timeline.push({
     type: jsPsychSurveyText,
     questions: [
@@ -303,7 +303,7 @@ function startExperiment() {
     ]
   });
 
-  // 问卷2：選択の基準+戦略の自由記述
+  // 報告2：選択の基準+戦略の自由記述
   timeline.push({
     type: jsPsychSurveyMultiSelect,
     questions: [
@@ -327,7 +327,7 @@ function startExperiment() {
     ]
   });
 
-  // 问卷3：相手の影響
+  // 報告3：相手の影響
   timeline.push({
     type: jsPsychSurveyLikert,
     questions: [
@@ -350,7 +350,7 @@ function startExperiment() {
     ]
   });
 
-  // 问卷4：フィードバックの影響
+  // 報告4：フィードバックの影響
   timeline.push({
     type: jsPsychSurveyLikert,
     questions: [
@@ -373,7 +373,7 @@ function startExperiment() {
     ]
   });
 
-  // 问卷5：仅开放题
+  // 報告5：アドバイス
   timeline.push({
     type: jsPsychSurveyText,
     questions: [
@@ -390,6 +390,6 @@ function startExperiment() {
   });
 
 
-  // ========== 启动实验 ==========
+  // ========== 実験開始 ==========
   jsPsych.run(timeline);
 }
