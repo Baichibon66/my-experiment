@@ -1,4 +1,4 @@
-// ========== Prolific PID ==========
+// ========== 获取Prolific PID ==========
 function getProlificPID() {
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.get('PROLIFIC_PID') || 'NO_PID';
@@ -49,8 +49,8 @@ function startExperiment() {
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
         <!-- ルール説明 -->
-        <p>当たれば+10pt、外れれば－10pt、3秒以内に賭けなければ±0pt</p>　 
-        <p style='font-size: 20px; margin-top: 40px;'>スペースキーに押してゲームを始めます。</p>
+        <p>当たれば+10pt、外れれば－10pt、3秒以内に賭けなければ±0pt</p>　
+        <p style='font-size: 20px; margin-top: 40px;'>スペースキーを押してゲームを始めます。</p>
       </div>
       `,
     choices: [' '],
@@ -170,7 +170,7 @@ function startExperiment() {
     stimulus: function() {
     return`
       <div style='font-size: 28px; text-align: center;'>
-        <p>お疲れ様でした！スペースキーを押して自省報告に進んでください。</p>
+        <p>お疲れ様でした！スペースキーを押して質問セクションに進んでください。</p>
         <p style='font-size: 24px; margin-top: 40px;'>Total Score：${totalScore}pt</p>
       </div>
     `;
@@ -215,7 +215,7 @@ function startExperiment() {
     type: jsPsychSurveyText,
     questions: [
       {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">タスク中の選択戦略を具体的に説明してください（例：「最初はランダムに選び、報酬が多い方を続けた」）。</div>',
+        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">ゲーム中の選択戦略を具体的に説明してください（例：「最初はランダムに選び、報酬が多い方を続けた」）。</div>',
         rows: 4,
         columns: 40,
         required: false
@@ -262,7 +262,7 @@ function startExperiment() {
     type: jsPsychSurveyText,
     questions: [
       {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">タスク中に混乱した点や疑問に思った点はありますか？</div>',
+        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">ゲーム中に混乱した点や疑問に思った点はありますか？</div>',
         rows: 4,
         columns: 40,
         required: false
@@ -275,7 +275,7 @@ function startExperiment() {
     type: jsPsychSurveyText,
     questions: [
       {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">実験全体に関する自由な意見や提案があればご記入ください。</div>',
+        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">実験全体に関する意見や提案があれば自由にご記入ください。</div>',
         rows: 6,
         columns: 60,
         required: false
