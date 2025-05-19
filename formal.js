@@ -4,6 +4,7 @@ function getProlificPID() {
   return urlParams.get('PROLIFIC_PID') || 'NO_PID';
 }
 const prolificPID = getProlificPID();
+console.log('Prolific ID:', prolificID);
 
 const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=C1M6ISR3"; // Completion Code
 
@@ -51,7 +52,7 @@ function startExperiment() {
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
         <!-- ルール説明 -->
-        <p>1.2人で交互に賭けを行う</p>　
+        <p>1.  2人で交互に賭けを行う</p>　
         <p>2.当たれば+10pt、外れれば－10pt、3秒以内に賭けなければ±0pt</p>　
         <p>3.相手の獲得ポイントに関係なく，あなたが獲得した報酬がそのまま得られる。</p>
         <p style='font-size: 20px; margin-top: 40px;'>スペースキーを押してゲームを始めます。</p>
