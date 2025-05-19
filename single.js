@@ -10,7 +10,7 @@ const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?c
 // ========== 1. パス設定 ==========
 const IMAGE_PATH = "formalimages/"; // images folder
 const TRIALS_XLSX_PATH = "experiment_data/formal_trials.csv"; // pseudorandom 試行表（順、手がかりの図、桜について）
-const OUTPUT_XLSX_NAME = "formal_choice_data.csv"; // データ輸出
+const OUTPUT_XLSX_NAME = "single_choice_data.csv"; // データ輸出
 
 // ========== 2. jsPsych全体設定 ==========
 const jsPsych = initJsPsych({
