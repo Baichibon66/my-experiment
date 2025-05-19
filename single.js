@@ -4,6 +4,7 @@ function getProlificPID() {
   return urlParams.get('PROLIFIC_PID') || 'NO_PID';
 }
 const prolificPID = getProlificPID();
+console.log('Prolific ID:', prolificID);
 
 const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=CBB5EKFB"; // Completion Code
 
