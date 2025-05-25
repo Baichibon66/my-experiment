@@ -21,6 +21,10 @@ const jsPsych = initJsPsych({
 });
 jsPsych.data.addProperties({prolificPID: prolificPID});
 
+// Add experiment start date and time
+const experimentStartTime = new Date().toISOString();
+jsPsych.data.addProperties({experimentStartTime: experimentStartTime});
+
 const globalStyle = `
   body { background-color: black !important; color: white !important; }
   .jspsych-content { color: white !important; }
@@ -294,8 +298,22 @@ function startExperiment() {
         columns: 60,
         required: false
       }
-    ],
+    ]
+  });
+
+  // ========== 画面8：感谢画面 ==========
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style='font-size: 28px; text-align: center;'>
+        <p>ご参加いただきありがとうございました！スペースキーを押して報酬の決済に進んでください。</p>
+      </div>
+    `,
+    choices: [' '],
+    trial_duration: null,
+    css_classes: ['jspsych-content'],
     on_finish: function() {
+      // Redirect to completion URL after space key is pressed
       window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
     }
   });
