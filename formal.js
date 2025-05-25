@@ -44,6 +44,19 @@ Papa.parse(TRIALS_XLSX_PATH, {
 });
 
 function startExperiment() {
+  // ========== 画面前前：等待对手画面 ==========
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style='font-size: 28px; text-align: center;'>
+        <p>もう1人の参加者をお待ちしています。</p>
+      </div>
+    `,
+    choices: "NO_KEYS",
+    trial_duration: 10000, // 10 seconds
+    css_classes: ['jspsych-content'],
+  });
+
   let isParticipantTurn = true;
   let trialIndex = 0;
   // ========== 画面前：准备画面 ==========
