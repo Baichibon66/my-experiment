@@ -44,6 +44,19 @@ Papa.parse(TRIALS_XLSX_PATH, {
 });
 
 function startExperiment() {
+  // ========== 画面前：准备画面 ==========
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style='font-size: 28px; text-align: center;'>
+        <p>これからゲームを始めます！</p>
+      </div>
+    `,
+    choices: "NO_KEYS",
+    trial_duration: 2000,
+    css_classes: ['jspsych-content'],
+  });
+
   // ========== 画面1：支持语 ==========
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
@@ -74,7 +87,7 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < 2; i++) {          //修改試行数
+  for (let i = 0; i < 120; i++) {          //修改試行数
     const trial = trials[i % trials.length];
     // ====== 被験者試行 ======
     // 画面3：刺激画面
