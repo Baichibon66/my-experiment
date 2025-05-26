@@ -6,7 +6,7 @@ function getProlificPID() {
 const prolificPID = getProlificPID();
 console.log('Prolific ID:', prolificPID);
 
-const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=CBB5EKFB"; // Completion Code
+const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=CZEQN2PE"; // Completion Code
 
 // ========== 1. パス設定 ==========
 const IMAGE_PATH = "formalimages/"; // images folder
