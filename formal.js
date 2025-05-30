@@ -221,10 +221,10 @@ function startExperiment() {
           <!--  -->
           <p>あなたの番です。</p>
           <p>どちらに賭けますか？</p>
-          <p style='font-size: 28px; margin-top: 40px;'>8=上，2=下</p>
+          <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
         </div>
       `,
-      choices: ['8', '2'],
+      choices: ['U', 'N'],
       trial_duration: 3000,
       response_ends_trial: true,
       css_classes: ['jspsych-content'],
