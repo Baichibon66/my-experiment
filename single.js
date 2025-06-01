@@ -16,7 +16,32 @@ const OUTPUT_XLSX_NAME = "single_choice_data.csv"; // データ輸出
 // ========== 2. jsPsych全体設定 ==========
 const jsPsych = initJsPsych({
   on_finish: function() {
-    jsPsych.data.get().localSave('csv', OUTPUT_XLSX_NAME);
+    // 获取实验数据，这里获取的是所有数据
+    const experimentData = jsPsych.data.get().json(); // 获取 JSON 格式的数据
+
+    // 替换为您的 Google Apps Script Web 应用 URL
+    const googleAppsScriptURL = 'https://script.google.com/macros/s/AKfycbyXegkpBS1vZS_seIQ21fjHWu1esIPsw2F1CQpbwpuGHFo0Vs-qxeNra8qrF3pRgKBe_A/exec'; // <-- 将此替换为您实际的 URL
+
+    // 使用 fetch 发送数据到 Google Apps Script
+    fetch(googleAppsScriptURL, {
+      method: 'POST',
+      mode: 'no-cors', // 使用 'no-cors' 模式
+      cache: 'no-cache',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: experimentData // 发送 JSON 字符串数据
+    })
+    .then(response => {
+      console.log('Data sent to Google Sheet', response);
+      // 发送成功后，可以重定向到完成页面或显示感谢信息
+      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+    })
+    .catch((error) => {
+      console.error('Error sending data:', error);
+      // 发送失败的处理，例如提示用户或仍然重定向
+      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+    });
   }
 });
 jsPsych.data.addProperties({prolificPID: prolificPID});
