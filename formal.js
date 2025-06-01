@@ -16,7 +16,32 @@ const OUTPUT_XLSX_NAME = "formal_choice_data.xlsx"; // データ輸出
 // ========== 2. jsPsych全体設定 ==========
 const jsPsych = initJsPsych({
   on_finish: function() {
-    jsPsych.data.get().localSave('xlsx', OUTPUT_XLSX_NAME);
+    // 获取实验数据，这里获取的是所有数据
+    const experimentData = jsPsych.data.get().json(); // 获取 JSON 格式的数据
+
+    // 替换为您的 Google Apps Script Web 应用 URL
+    const googleAppsScriptURL = 'https://script.google.com/macros/s/AKfycbxJxjb4i2ipTHzIbopXKkllwKx3xbuBq-UtN1v2JRQNuVGRUCbiaPKP6rrC-zlwrHj7/exec'; // <-- 将此替换为您实际的 URL
+
+    // 使用 fetch 发送数据到 Google Apps Script
+    fetch(googleAppsScriptURL, {
+      method: 'POST',
+      mode: 'no-cors', // 使用 'no-cors' 模式
+      cache: 'no-cache',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: experimentData // 发送 JSON 字符串数据
+    })
+    .then(response => {
+      console.log('Data sent to Google Sheet', response);
+      // 发送成功后，可以重定向到完成页面或显示感谢信息
+      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+    })
+    .catch((error) => {
+      console.error('Error sending data:', error);
+      // 发送失败的处理，例如提示用户或仍然重定向
+      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+    });
   }
 });
 jsPsych.data.addProperties({prolificPID: prolificPID});
@@ -224,7 +249,7 @@ function startExperiment() {
           <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
         </div>
       `,
-      choices: ['U', 'N'],
+      choices: ['U', 'N', 'u', 'n'], // 允许大写和小写按键
       trial_duration: 3000,
       response_ends_trial: true,
       css_classes: ['jspsych-content'],
@@ -232,7 +257,8 @@ function startExperiment() {
         let key = data.response ? data.response : 0;
         let rt = data.rt ? data.rt : 3000;
         let correctKey = trial.Correct_Key;
-        let isCorrect = (key == correctKey);
+        // 不区分大小写比较
+        let isCorrect = (key != 0 && key.toUpperCase() == correctKey.toUpperCase());
         let scoreChange = 0;
         if (key == 0) {
           scoreChange = 0;
