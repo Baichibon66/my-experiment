@@ -25,7 +25,6 @@ const jsPsych = initJsPsych({
     // 使用 fetch 发送数据到 Google Apps Script
     fetch(googleAppsScriptURL, {
       method: 'POST',
-      mode: 'no-cors', // 使用 'no-cors' 模式
       cache: 'no-cache',
       headers: {
         'Content-Type': 'application/json',
