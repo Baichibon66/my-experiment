@@ -116,7 +116,7 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < 5; i++) {          //修改試行数
+  for (let i = 0; i < 2; i++) {          //修改試行数
     const trial = trials[i % trials.length];
     // ====== 被験者試行 ======
     // 画面3：刺激画面
@@ -148,7 +148,7 @@ function startExperiment() {
           <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
         </div>
       `,
-      choices: ['U', 'N'],
+      choices: ['U', 'N', 'u', 'n'],
       trial_duration: 3000,
       response_ends_trial: true,
       css_classes: ['jspsych-content'],
@@ -156,7 +156,7 @@ function startExperiment() {
         let key = data.response ? data.response : 0;
         let rt = data.rt ? data.rt : 3000;
         let correctKey = trial.Correct_Key;
-        let isCorrect = (key == correctKey);
+        let isCorrect = (key != 0 && key.toUpperCase() == correctKey.toUpperCase());
         let scoreChange = 0;
         if (key == 0) {
           scoreChange = 0;
