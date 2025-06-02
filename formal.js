@@ -384,7 +384,7 @@ function startExperiment() {
     questions: [
       {
         prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">相手の選択結果は、あなたの次の選択にどの程度影響しましたか？</div>',
-        labels: ['全く影響しなかった', '少し影響した', '中程度に影響した', '強く影響した', '非常に強く影響した'],
+        labels: ['<span class="white">全く影響しなかった</span>', '<span class="white">少し影響した</span>', '<span class="white">中程度に影響した</span>', '<span class="white">強く影響した</span>', '<span class="white">非常に強く影響した</span>'],
         required: true
       }
     ]
@@ -407,7 +407,7 @@ function startExperiment() {
     questions: [
       {
         prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">報酬や損失のフィードバックは、その後の選択にどの程度影響しましたか？</div>',
-        labels: ['全く影響しなかった', '少し影響した', '中程度に影響した', '強く影響した', '非常に強く影響した'],
+        labels: ['<span class="white">全く影響しなかった</span>', '<span class="white">少し影響した</span>', '<span class="white">中程度に影響した</span>', '<span class="white">強く影響した</span>', '<span class="white">非常に強く影響した</span>'],
         required: true
       }
     ]
