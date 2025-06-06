@@ -20,7 +20,7 @@ const jsPsych = initJsPsych({
     const experimentData = jsPsych.data.get().json(); // 获取 JSON 格式的数据
 
     // 替换为您的 Google Apps Script Web 应用 URL
-    const googleAppsScriptURL = 'https://script.google.com/macros/s/AKfycbxGKDidRW3TRTCya0M0cBngoDOUaHsWUaulSTrPBu528XpNgNWI0lM_N76pnyVcLM-M/exec'; // <-- 将此替换为您实际的 URL
+    const googleAppsScriptURL = 'https://script.google.com/macros/s/AKfycbx6UPFmfmMeNsCBQt1bRqPxyyiaNOZfMqbYkIU2Ja4kiqzSh8qiVa5DmnVei4GitySZ/exec'; // <-- 将此替换为您实际的 URL
 
     // 使用 fetch 发送数据到 Google Apps Script
     fetch(googleAppsScriptURL, {
