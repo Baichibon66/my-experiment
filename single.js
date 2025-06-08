@@ -100,7 +100,7 @@ function startExperiment() {
 
   // ========== 新增：练习环节 (6个试次) ==========
   // 使用正式实验的前6个试次数据作为练习
-  const practiceTrialsToUse = practiceTrials;
+  const practiceTrialsToUse = practiceTrials.slice(0, 6);
 
   for (let i = 0; i < practiceTrialsToUse.length; i++) {
     const trial = practiceTrialsToUse[i];
