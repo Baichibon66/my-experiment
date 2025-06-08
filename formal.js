@@ -350,7 +350,7 @@ function startExperiment() {
   });
 
   // ========== 4. 主体実験の流れ ==========
-  for (let i = 0; i < 5; i++) {          //试行数设定
+  for (let i = 0; i < 120; i++) {          //试行数设定
     const trial = trials[i % trials.length];
     // Change order: Opponent turn first, then Participant turn
     
