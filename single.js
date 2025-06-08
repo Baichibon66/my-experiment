@@ -196,7 +196,21 @@ function startExperiment() {
     data: { is_practice: true } // 标记为练习试次
     });
   }
-  // ========== 画面前：准备画面 ==========
+
+  // === 在这里插入练习结束语界面 ===
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style='font-size: 28px; text-align: center;'>
+        <p>练习结束，按空格键进入正式实验。</p>
+        <!-- 这里可以后续自由编辑内容 -->
+      </div>
+    `,
+    choices: [' '],
+    css_classes: ['jspsych-content'],
+  });
+
+  // === 下面是准备画面 ===
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
@@ -204,7 +218,8 @@ function startExperiment() {
         <p>これからゲームを始めます！</p>
       </div>
     `,
-    choices: [' '],
+    choices: "NO_KEYS",
+    trial_duration: 2000,
     css_classes: ['jspsych-content'],
   });
 
@@ -238,7 +253,7 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < 2; i++) {          //修改試行数
+  for (let i = 0; i < 120; i++) {          //修改試行数
     const trial = trials[i % trials.length];
     // ====== 被験者試行 ======
     // 画面3：刺激画面
