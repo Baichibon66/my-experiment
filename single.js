@@ -12,6 +12,7 @@ const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?c
 const IMAGE_PATH = "formalimages/"; // images folder
 const TRIALS_XLSX_PATH = "experiment_data/formal_trials.csv"; // pseudorandom 試行表（順、手がかりの図、桜について）
 const OUTPUT_XLSX_NAME = "single_choice_data.csv"; // データ輸出
+const PRACTICE_TRIALS_XLSX_PATH = "experiment_data/practice_trials.csv";
 
 // ========== 2. jsPsych全体設定 ==========
 const jsPsych = initJsPsych({
@@ -20,7 +21,8 @@ const jsPsych = initJsPsych({
     const experimentData = jsPsych.data.get().json(); // 获取 JSON 格式的数据
 
     // 替换为您的 Google Apps Script Web 应用 URL
-    const googleAppsScriptURL = 'https://script.google.com/macros/s/AKfycbzeV-cMktMoKsMCf2n_qemfG_Oviig6KMyVAIxNp_SIg5EvQZpNTk3DtMsr1ZL_Tg4i/exec';
+    const googleAppsScriptURL = 'https://script.google.com/macros/s/AKfycbxNitcAF6K5Yk-XfQZa6s4KNwPYRZ2URUXe6f3vdNQ/dev';
+     // <-- 将此替换为您实际的 URL
 
     // 使用 fetch 发送数据到 Google Apps Script
     fetch(googleAppsScriptURL, {
@@ -59,20 +61,141 @@ style.innerHTML = globalStyle;
 document.head.appendChild(style);
 
 // ========== 3. 試行表の読み込み ==========
+let practiceTrials = [];
 let trials = [];
 let timeline = [];
 let totalScore = 0;
 
-Papa.parse(TRIALS_XLSX_PATH, {
+Papa.parse(PRACTICE_TRIALS_XLSX_PATH, {
   download: true,
   header: true,
-  complete: function(results) {
-    trials = results.data;
-    startExperiment();
+  complete: function(practiceResults) {
+    practiceTrials = practiceResults.data;
+    Papa.parse(TRIALS_XLSX_PATH, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        trials = results.data;
+        startExperiment();
+      }
+    });
   }
 });
 
 function startExperiment() {
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style='font-size: 28px; text-align: center;'>
+        <p>这是一个练习环节。</p>
+        <p>练习的规则和正式实验一样。</p>
+        <p>按空格键开始练习。</p>
+        <!-- TODO: 在这里添加具体的练习指导语 -->
+      </div>
+    `,
+    choices: [' '],
+    css_classes: ['jspsych-content'],
+  });
+
+  // ========== 新增：练习环节 (6个试次) ==========
+  // 使用正式实验的前6个试次数据作为练习
+  const practiceTrialsToUse = practiceTrials;
+
+  for (let i = 0; i < practiceTrialsToUse.length; i++) {
+    const trial = practiceTrialsToUse[i];
+    // ====== 被験者試行 ======
+    // 画面3：刺激画面 (练习)
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='position: relative; width: 100vw; height: 100vh;'>
+          <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);'>
+            <svg width='120' height='120'>
+              <circle cx='60' cy='60' r='30' stroke='red' stroke-width='4' fill='none'/>
+              <circle cx='60' cy='60' r='10' stroke='red' stroke-width='4' fill='none'/>
+            </svg>
+          </div>
+          <img src='${IMAGE_PATH + trial.Up_Image + ".png"}' style='position: absolute; left: 50%; top: 20%; transform: translate(-50%, 0); height: 120px;'>
+          <img src='${IMAGE_PATH + trial.Down_Image + ".png"}' style='position: absolute; left: 50%; bottom: 20%; transform: translate(-50%, 0); height: 120px;'>
+        </div>
+      `,
+      choices: "NO_KEYS",
+      trial_duration: Math.floor(Math.random() * 151) + 1000,
+      css_classes: ['jspsych-content'],
+      data: { is_practice: true } // 标记为练习试次
+    });
+    // 画面4：选择画面 (练习)
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='font-size: 48px; text-align: center;'>
+          <!--  -->
+          <p>どちらに賭けますか？</p>
+          <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
+        </div>
+      `,
+      choices: ['U', 'N', 'u', 'n'],
+      trial_duration: 3000,
+      response_ends_trial: true,
+      css_classes: ['jspsych-content'],
+      on_finish: function(data){
+        let key = data.response ? data.response : 0;
+        let rt = data.rt ? data.rt : 3000;
+        let correctKey = trial.Correct_Key;
+        let isCorrect = (key != 0 && key.toUpperCase() == correctKey.toUpperCase());
+        let scoreChange = 0;
+        if (key == 0) {
+          scoreChange = 0;
+        } else if (isCorrect) {
+          scoreChange = 10;
+        } else {
+          scoreChange = -10;
+        }
+        if (key != 0) practiceScore += scoreChange; // 修改：更新练习分数
+        data.trial_type = "practice"; // 修改：标记为练习试次类型
+        data.trial_index = i+1;
+        data.choice = key;
+        data.rt = rt;
+        data.isCorrect = isCorrect;
+        data.scoreChange = scoreChange;
+        data.practiceScore = practiceScore; // 新增：记录练习分数
+        // TODO: 决定是否记录其他练习数据到 jsPsych.data
+        // 当前设置下，标记了 is_practice: true 的数据会被 on_finish 过滤掉
+      },
+      data: { is_practice: true } // 标记为练习试次
+    });
+    // 画面5：フィードバック画面 (练习)
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='text-align: center;'>
+          <img src='${IMAGE_PATH + trial.Correct_Image + ".png"}' style='height: 120px; margin-bottom: 40px;'>
+          <div style='font-size: 32px; color: white; margin-top: 40px;'>+10pt</div>
+        </div>
+      `,
+      choices: "NO_KEYS",
+      trial_duration: 800,
+      css_classes: ['jspsych-content'],
+      data: { is_practice: true } // 标记为练习试次
+    });
+    // 画面6：点数画面 (练习)
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: function() {
+      return`
+        <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center;'>
+          <div style='font-size: 48px;'>あなた</div>
+          <div style='height: 100px;'></div>
+          <div style='font-size: 48px;'>${practiceScore}</div> <!-- 修改：显示练习分数 -->
+        </div>
+      `;
+    },
+    choices: "NO_KEYS",
+    trial_duration: 800,
+    css_classes: ['jspsych-content'],
+    data: { is_practice: true } // 标记为练习试次
+    });
+  }
   // ========== 画面前：准备画面 ==========
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
@@ -81,8 +204,7 @@ function startExperiment() {
         <p>これからゲームを始めます！</p>
       </div>
     `,
-    choices: "NO_KEYS",
-    trial_duration: 2000,
+    choices: [' '],
     css_classes: ['jspsych-content'],
   });
 
