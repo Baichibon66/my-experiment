@@ -65,6 +65,7 @@ let practiceTrials = [];
 let trials = [];
 let timeline = [];
 let totalScore = 0;
+let practiceScore = 0;
 
 Papa.parse(PRACTICE_TRIALS_XLSX_PATH, {
   download: true,
