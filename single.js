@@ -88,9 +88,9 @@ function startExperiment() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>这是一个练习环节。</p>
-        <p>练习的规则和正式实验一样。</p>
-        <p>按空格键开始练习。</p>
+        <p>こちらは練習のセクションです。</p>
+        <p>このセクションを通じて、実験の流れに慣れてください。</p>
+        <p>スペースキーを押して練習を開始してください。</p>
         <!-- TODO: 在这里添加具体的练习指导语 -->
       </div>
     `,
@@ -203,7 +203,7 @@ function startExperiment() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>练习结束，按空格键进入正式实验。</p>
+        <p>練習が終了しました。スペースキーを押して正式実験に進んでください。</p>
         <!-- 这里可以后续自由编辑内容 -->
       </div>
     `,
