@@ -12,6 +12,7 @@ const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?c
 const IMAGE_PATH = "formalimages/"; // images folder
 const TRIALS_XLSX_PATH = "experiment_data/formal_trials.csv"; // pseudorandom　試行表（順、手がかりの図、桜について）
 const OUTPUT_XLSX_NAME = "formal_choice_data.xlsx"; // データ輸出
+const PRACTICE_TRIALS_XLSX_PATH = "experiment_data/practice_trials.csv"; // 练习用试次表
 
 // ========== 2. jsPsych全体設定 ==========
 const jsPsych = initJsPsych({
@@ -57,13 +58,22 @@ document.head.appendChild(style);
 let trials = [];
 let timeline = [];
 let totalScore = 0;
+let practiceTrials = [];
+let practiceScore = 0;
 
-Papa.parse(TRIALS_XLSX_PATH, {
+Papa.parse(PRACTICE_TRIALS_XLSX_PATH, {
   download: true,
   header: true,
-  complete: function(results) {
-    trials = results.data;
-    startExperiment();
+  complete: function(practiceResults) {
+    practiceTrials = practiceResults.data;
+    Papa.parse(TRIALS_XLSX_PATH, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        trials = results.data;
+        startExperiment();
+      }
+    });
   }
 });
 
@@ -78,6 +88,206 @@ function startExperiment() {
     `,
     choices: "NO_KEYS",
     trial_duration: 10000, // 10 seconds
+    css_classes: ['jspsych-content'],
+  });
+
+  // ========== 新增：练习环节 ==========
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style='font-size: 28px; text-align: center;'>
+        <p>这是一个练习环节。</p>
+        <p>练习的规则和正式实验一样。</p>
+        <p>按空格键开始练习。</p>
+      </div>
+    `,
+    choices: [' '],
+    css_classes: ['jspsych-content'],
+  });
+  practiceScore = 0;
+  const practiceTrialsToUse = practiceTrials.slice(0, 6); // 取前6个练习试次
+  for (let i = 0; i < practiceTrialsToUse.length; i++) {
+    const trial = practiceTrialsToUse[i];
+    // ====== 对方试次（练习） ======
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='position: relative; width: 100vw; height: 100vh;'>
+          <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);'>
+            <svg width='120' height='120'>
+              <circle cx='60' cy='60' r='30' stroke='red' stroke-width='4' fill='none'/>
+              <circle cx='60' cy='60' r='10' stroke='red' stroke-width='4' fill='none'/>
+            </svg>
+          </div>
+          <img src='${IMAGE_PATH + trial.Up_Image0 + ".png"}' style='position: absolute; left: 50%; top: 20%; transform: translate(-50%, 0); height: 120px;'>
+          <img src='${IMAGE_PATH + trial.Down_Image0 + ".png"}' style='position: absolute; left: 50%; bottom: 20%; transform: translate(-50%, 0); height: 120px;'>
+        </div>
+      `,
+      choices: "NO_KEYS",
+      trial_duration: Math.floor(Math.random() * 151) + 1000,
+      css_classes: ['jspsych-content'],
+      data: { is_practice: true }
+    });
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='font-size: 48px; text-align: center;'>
+          <p>相手が選択中です。しばらくお待ち下さい。</p>
+        </div>
+      `,
+      choices: "NO_KEYS",
+      trial_duration: Math.floor(Math.random() * 2001) + 1000,
+      css_classes: ['jspsych-content'],
+      data: { is_practice: true }
+    });
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='text-align: center;'>
+          <img src='${IMAGE_PATH + trial.Correct_Image0 + ".png"}' style='height: 120px; margin-bottom: 40px;'>
+          <div style='font-size: 48px; color: white; margin-top: 40px;'>+10pt</div>
+        </div>
+      `,
+      choices: "NO_KEYS",
+      trial_duration: 800,
+      css_classes: ['jspsych-content'],
+      data: { is_practice: true }
+    });
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: function() {
+        return `
+          <div style='position: absolute; left: 20vw; top: 20vh; text-align: center;'>
+            <div style='font-size: 48px;'>あなた</div>
+            <div style='height: 400px;'></div>
+            <div style='font-size: 48px;'>${practiceScore}</div>
+          </div>
+          <div style='position: absolute; right: 20vw; top: 20vh; text-align: center;'>
+            <div style='font-size: 48px;'>相手</div>
+            <div style='height: 400px;'></div>
+            <div style='font-size: 48px;'>${trial.Fake_Score}</div>
+          </div>
+          <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);'>
+            <svg width='100' height='100'>
+              <circle cx='60' cy='60' r='30' stroke='red' stroke-width='4' fill='none'/>
+              <circle cx='60' cy='60' r='10' stroke='red' stroke-width='4' fill='none'/>
+            </svg>
+          </div>
+        `;
+      },
+      choices: "NO_KEYS",
+      trial_duration: 800,
+      css_classes: ['jspsych-content'],
+      data: { is_practice: true }
+    });
+    // ====== 被试试次（练习） ======
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='position: relative; width: 100vw; height: 100vh;'>
+          <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);'>
+            <svg width='120' height='120'>
+              <circle cx='60' cy='60' r='30' stroke='red' stroke-width='4' fill='none'/>
+              <circle cx='60' cy='60' r='10' stroke='red' stroke-width='4' fill='none'/>
+            </svg>
+          </div>
+          <img src='${IMAGE_PATH + trial.Up_Image + ".png"}' style='position: absolute; left: 50%; top: 20%; transform: translate(-50%, 0); height: 120px;'>
+          <img src='${IMAGE_PATH + trial.Down_Image + ".png"}' style='position: absolute; left: 50%; bottom: 20%; transform: translate(-50%, 0); height: 120px;'>
+        </div>
+      `,
+      choices: "NO_KEYS",
+      trial_duration: Math.floor(Math.random() * 151) + 1000,
+      css_classes: ['jspsych-content'],
+      data: { is_practice: true }
+    });
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='font-size: 48px; text-align: center;'>
+          <p>あなたの番です。</p>
+          <p>どちらに賭けますか？</p>
+          <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
+        </div>
+      `,
+      choices: ['U', 'N', 'u', 'n'],
+      trial_duration: 3000,
+      response_ends_trial: true,
+      css_classes: ['jspsych-content'],
+      on_finish: function(data){
+        let key = data.response ? data.response : 0;
+        let rt = data.rt ? data.rt : 3000;
+        let correctKey = trial.Correct_Key;
+        let isCorrect = (key != 0 && key.toUpperCase() == correctKey.toUpperCase());
+        let scoreChange = 0;
+        if (key == 0) {
+          scoreChange = 0;
+        } else if (isCorrect) {
+          scoreChange = 10;
+        } else {
+          scoreChange = -10;
+        }
+        if (key != 0) practiceScore += scoreChange;
+        data.trial_type = "practice";
+        data.trial_index = i+1;
+        data.choice = key;
+        data.rt = rt;
+        data.isCorrect = isCorrect;
+        data.scoreChange = scoreChange;
+        data.practiceScore = practiceScore;
+        data.opponentScore = trial.Fake_Score;
+      },
+      data: { is_practice: true }
+    });
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='text-align: center;'>
+          <img src='${IMAGE_PATH + trial.Correct_Image + ".png"}' style='height: 120px; margin-bottom: 40px;'>
+          <div style='font-size: 32px; color: white; margin-top: 40px;'>+10pt</div>
+        </div>
+      `,
+      choices: "NO_KEYS",
+      trial_duration: 800,
+      css_classes: ['jspsych-content'],
+      data: { is_practice: true }
+    });
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: function() {
+        return `
+          <div style='position: absolute; left: 20vw; top: 20vh; text-align: center;'>
+            <div style='font-size: 48px;'>あなた</div>
+            <div style='height: 400px;'></div>
+            <div style='font-size: 48px;'>${practiceScore}</div>
+          </div>
+          <div style='position: absolute; right: 20vw; top: 20vh; text-align: center;'>
+            <div style='font-size: 48px;'>相手</div>
+            <div style='height: 400px;'></div>
+            <div style='font-size: 48px;'>${trial.Fake_Score}</div>
+          </div>
+          <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);'>
+            <svg width='100' height='100'>
+              <circle cx='60' cy='60' r='30' stroke='red' stroke-width='4' fill='none'/>
+              <circle cx='60' cy='60' r='10' stroke='red' stroke-width='4' fill='none'/>
+            </svg>
+          </div>
+        `;
+      },
+      choices: "NO_KEYS",
+      trial_duration: 800,
+      css_classes: ['jspsych-content'],
+      data: { is_practice: true }
+    });
+  }
+  // === 练习结束语界面 ===
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style='font-size: 28px; text-align: center;'>
+        <p>练习结束，按空格键进入正式实验。</p>
+      </div>
+    `,
+    choices: [' '],
     css_classes: ['jspsych-content'],
   });
 
