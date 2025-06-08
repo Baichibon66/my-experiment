@@ -89,6 +89,7 @@ function startExperiment() {
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
         <p>こちらは練習のセクションです。</p>
+        <p>練習に入る前に、必ず本研究のProlificページに記載された説明をよくお読みください。</p>
         <p>このセクションを通じて、実験の流れに慣れてください。</p>
         <p>スペースキーを押して練習を開始してください。</p>
         <!-- TODO: 在这里添加具体的练习指导语 -->
