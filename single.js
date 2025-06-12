@@ -21,7 +21,7 @@ const jsPsych = initJsPsych({
     const experimentData = jsPsych.data.get().json(); // 获取 JSON 格式的数据
 
     // 替换为您的 Google Apps Script Web 应用 URL
-    const serverURL = 'https://baichibon%40psycho.hes.kyushu-u.ac.jp@hosting7.cc.kyushu-u.ac.jp/single/save_data.php';
+    const serverURL = 'https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/single/save_data.php';
      // <-- 将此替换为您实际的 URL
 
     // 使用 fetch 发送数据到 Google Apps Script
