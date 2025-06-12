@@ -21,7 +21,7 @@ const jsPsych = initJsPsych({
     const experimentData = jsPsych.data.get().json(); // 获取 JSON 格式的数据
 
     // 替换为您的 Google Apps Script Web 应用 URL
-    const serverURL = 'ftp://baichibon%40psycho.hes.kyushu-u.ac.jp@hosting7.cc.kyushu-u.ac.jp/single/save_data.php';
+    const serverURL = 'https://baichibon%40psycho.hes.kyushu-u.ac.jp@hosting7.cc.kyushu-u.ac.jp/single/save_data.php';
      // <-- 将此替换为您实际的 URL
 
     // 使用 fetch 发送数据到 Google Apps Script
@@ -253,7 +253,7 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < 120; i++) {          //修改試行数
+  for (let i = 0; i < 2; i++) {          //修改試行数
     const trial = trials[i % trials.length];
     // ====== 被験者試行 ======
     // 画面3：刺激画面
