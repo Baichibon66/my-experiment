@@ -21,18 +21,16 @@ const jsPsych = initJsPsych({
     const experimentData = jsPsych.data.get().json(); // 获取 JSON 格式的数据
 
     // 替换为您的 Google Apps Script Web 应用 URL
-    const googleAppsScriptURL = 'https://script.google.com/macros/s/AKfycbxNitcAF6K5Yk-XfQZa6s4KNwPYRZ2URUXe6f3vdNQ/dev';
+    const serverURL = 'ftp://baichibon%40psycho.hes.kyushu-u.ac.jp@hosting7.cc.kyushu-u.ac.jp/single/save_data.php';
      // <-- 将此替换为您实际的 URL
 
     // 使用 fetch 发送数据到 Google Apps Script
-    fetch(googleAppsScriptURL, {
+    fetch(serverURL, {
       method: 'POST',
-      mode: 'no-cors', // 使用 'no-cors' 模式
-      cache: 'no-cache',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: experimentData // 发送 JSON 字符串数据
+      body: experimentData // 这里 experimentData 是 JSON 字符串
     })
     .then(response => {
       console.log('Data sent to Google Sheet', response);
@@ -485,3 +483,4 @@ function startExperiment() {
   // ========== 実験開始 ==========
   jsPsych.run(timeline);
 }
+
