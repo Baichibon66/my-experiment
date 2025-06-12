@@ -17,31 +17,14 @@ const PRACTICE_TRIALS_XLSX_PATH = "experiment_data/practice_trials.csv";
 // ========== 2. jsPsych全体設定 ==========
 const jsPsych = initJsPsych({
   on_finish: function() {
-    // 获取实验数据，这里获取的是所有数据
-    const experimentData = jsPsych.data.get().json(); // 获取 JSON 格式的数据
-
-    // 替换为您的 Google Apps Script Web 应用 URL
-    const serverURL = 'https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/single/save_data.php';
-     // <-- 将此替换为您实际的 URL
-
-    // 使用 fetch 发送数据到 Google Apps Script
-    fetch(serverURL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: experimentData // 这里 experimentData 是 JSON 字符串
-    })
-    .then(response => {
-      console.log('Data sent to Google Sheet', response);
-      // 发送成功后，可以重定向到完成页面或显示感谢信息
-      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
-    })
-    .catch((error) => {
-      console.error('Error sending data:', error);
-      // 发送失败的处理，例如提示用户或仍然重定向
-      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
-    });
+    const allTrials = jsPsych.data.get().values(); // 获取所有试次的数组
+    for (let i = 0; i < allTrials.length; i++) {
+      fetch(serverURL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(allTrials[i])
+      });
+    }
   }
 });
 jsPsych.data.addProperties({prolificPID: prolificPID});
@@ -253,7 +236,7 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < 2; i++) {          //修改試行数
+  for (let i = 0; i < 120; i++) {          //修改試行数
     const trial = trials[i % trials.length];
     // ====== 被験者試行 ======
     // 画面3：刺激画面
@@ -483,4 +466,3 @@ function startExperiment() {
   // ========== 実験開始 ==========
   jsPsych.run(timeline);
 }
-
