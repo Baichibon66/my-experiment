@@ -1,3 +1,4 @@
+const serverURL = 'https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/single/save_data.php';
 // ========== 获取Prolific PID ==========
 function getProlificPID() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -40,6 +41,7 @@ const globalStyle = `
 const style = document.createElement('style');
 style.innerHTML = globalStyle;
 document.head.appendChild(style);
+
 
 // ========== 3. 試行表の読み込み ==========
 let practiceTrials = [];
