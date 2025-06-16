@@ -1,4 +1,5 @@
 const serverURL = 'https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/single/save_data.php';
+
 // ========== 获取Prolific PID ==========
 function getProlificPID() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -23,7 +24,8 @@ const jsPsych = initJsPsych({
       fetch(serverURL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(allTrials[i])
+        body: JSON.stringify(allTrials[i]),
+        mode: 'cors'
       });
     }
   }
@@ -42,7 +44,6 @@ const style = document.createElement('style');
 style.innerHTML = globalStyle;
 document.head.appendChild(style);
 
-
 // ========== 3. 試行表の読み込み ==========
 let practiceTrials = [];
 let trials = [];
@@ -50,21 +51,45 @@ let timeline = [];
 let totalScore = 0;
 let practiceScore = 0;
 
-Papa.parse(PRACTICE_TRIALS_XLSX_PATH, {
-  download: true,
-  header: true,
-  complete: function(practiceResults) {
-    practiceTrials = practiceResults.data;
-    Papa.parse(TRIALS_XLSX_PATH, {
-      download: true,
-      header: true,
-      complete: function(results) {
-        trials = results.data;
-        startExperiment();
-      }
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function generateBlockTrials() {
+  // 15次图片1在上，15次图片2在上
+  let upImages = Array(15).fill('1').concat(Array(15).fill('2'));
+  upImages = shuffle(upImages);
+
+  // 下方图片与上方相反
+  let downImages = upImages.map(img => img === '1' ? '2' : '1');
+
+  // 21次图片1中奖，9次图片2中奖
+  let correctImages = Array(21).fill('1').concat(Array(9).fill('2'));
+  correctImages = shuffle(correctImages);
+
+  // 生成30个试次
+  let block = [];
+  for (let i = 0; i < 30; i++) {
+    // 正确按键：如果中奖图片在上，按U；在下，按N
+    let correctKey = (correctImages[i] === upImages[i]) ? 'U' : 'N';
+    block.push({
+      Up_Image: upImages[i],
+      Down_Image: downImages[i],
+      Correct_Image: correctImages[i],
+      Correct_Key: correctKey
     });
   }
-});
+  return block;
+}
+
+// 生成全部120试次
+for (let b = 0; b < 4; b++) {
+  trials = trials.concat(generateBlockTrials());
+}
 
 function startExperiment() {
   timeline.push({
@@ -238,8 +263,8 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < 10; i++) {          //修改試行数
-    const trial = trials[i % trials.length];
+  for (let i = 0; i < trials.length; i++) {
+    const trial = trials[i];
     // ====== 被験者試行 ======
     // 画面3：刺激画面
     timeline.push({
@@ -277,8 +302,7 @@ function startExperiment() {
       on_finish: function(data){
         let key = data.response ? data.response : 0;
         let rt = data.rt ? data.rt : 3000;
-        let correctKey = trial.Correct_Key;
-        let isCorrect = (key != 0 && key.toUpperCase() == correctKey.toUpperCase());
+        let isCorrect = (key != 0 && key.toUpperCase() == trial.Correct_Key);
         let scoreChange = 0;
         if (key == 0) {
           scoreChange = 0;
@@ -288,6 +312,8 @@ function startExperiment() {
           scoreChange = -10;
         }
         if (key != 0) totalScore += scoreChange;
+
+        // 记录所有刺激参数
         data.trial_type = "participant";
         data.trial_index = i+1;
         data.choice = key;
@@ -295,7 +321,12 @@ function startExperiment() {
         data.isCorrect = isCorrect;
         data.scoreChange = scoreChange;
         data.totalScore = totalScore;
-        data.opponentScore = trial.Fake_Score;
+
+        // 新增：记录本试次的刺激参数
+        data.Up_Image = trial.Up_Image;
+        data.Down_Image = trial.Down_Image;
+        data.Correct_Image = trial.Correct_Image;
+        data.Correct_Key = trial.Correct_Key;
       }
     });
     // 画面5：フィードバック画面
@@ -468,3 +499,4 @@ function startExperiment() {
   // ========== 実験開始 ==========
   jsPsych.run(timeline);
 }
+
