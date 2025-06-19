@@ -1,5 +1,3 @@
-const serverURL = 'https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/single/save_data.php';
-
 // ========== 获取Prolific PID ==========
 function getProlificPID() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -19,15 +17,31 @@ const PRACTICE_TRIALS_XLSX_PATH = "experiment_data/practice_trials.csv";
 // ========== 2. jsPsych全体設定 ==========
 const jsPsych = initJsPsych({
   on_finish: function() {
-    const allTrials = jsPsych.data.get().values(); // 获取所有试次的数组
-    for (let i = 0; i < allTrials.length; i++) {
-      fetch(serverURL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(allTrials[i]),
-        mode: 'cors'
-      });
-    }
+    // 获取实验数据，这里获取的是所有数据
+    const experimentData = jsPsych.data.get().json(); // 获取 JSON 格式的数据
+
+    // 替换为您的 Google Apps Script Web 应用 URL
+    const serverURL = 'https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/single/save_data.php';
+     // <-- 将此替换为您实际的 URL
+
+    // 使用 fetch 发送数据到 Google Apps Script
+    fetch(serverURL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: experimentData // 这里 experimentData 是 JSON 字符串
+    })
+    .then(response => {
+      console.log('Data sent to Google Sheet', response);
+      // 发送成功后，可以重定向到完成页面或显示感谢信息
+      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+    })
+    .catch((error) => {
+      console.error('Error sending data:', error);
+      // 发送失败的处理，例如提示用户或仍然重定向
+      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+    });
   }
 });
 jsPsych.data.addProperties({prolificPID: prolificPID});
@@ -51,45 +65,56 @@ let timeline = [];
 let totalScore = 0;
 let practiceScore = 0;
 
-function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-  return array;
-}
+Papa.parse(PRACTICE_TRIALS_XLSX_PATH, {
+  download: true,
+  header: true,
+  complete: function(practiceResults) {
+    practiceTrials = practiceResults.data;
+    Papa.parse(TRIALS_XLSX_PATH, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        trials = results.data;
+        // 假设trials已经有120个元素
+        const BLOCK_SIZE = 30;
+        const BLOCK_NUM = 4;
+        const UP_IMAGES = ['1', '2'];
 
-function generateBlockTrials() {
-  // 15次图片1在上，15次图片2在上
-  let upImages = Array(15).fill('1').concat(Array(15).fill('2'));
-  upImages = shuffle(upImages);
+        for (let block = 0; block < BLOCK_NUM; block++) {
+          // 生成15个'1'和15个'2'的上方图片分配
+          let upImages = Array(15).fill('1').concat(Array(15).fill('2'));
+          // 随机打乱
+          for (let i = upImages.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [upImages[i], upImages[j]] = [upImages[j], upImages[i]];
+          }
+          // 分配到trials
+          for (let i = 0; i < BLOCK_SIZE; i++) {
+            const trialIndex = block * BLOCK_SIZE + i;
+            trials[trialIndex].Up_Image = upImages[i];
+            trials[trialIndex].Down_Image = upImages[i] === '1' ? '2' : '1';
+          }
+        }
 
-  // 下方图片与上方相反
-  let downImages = upImages.map(img => img === '1' ? '2' : '1');
-
-  // 21次图片1中奖，9次图片2中奖
-  let correctImages = Array(21).fill('1').concat(Array(9).fill('2'));
-  correctImages = shuffle(correctImages);
-
-  // 生成30个试次
-  let block = [];
-  for (let i = 0; i < 30; i++) {
-    // 正确按键：如果中奖图片在上，按U；在下，按N
-    let correctKey = (correctImages[i] === upImages[i]) ? 'U' : 'N';
-    block.push({
-      Up_Image: upImages[i],
-      Down_Image: downImages[i],
-      Correct_Image: correctImages[i],
-      Correct_Key: correctKey
+        for (let block = 0; block < BLOCK_NUM; block++) {
+          // 生成21个'1'和9个'2'的正确线索图片分配
+          let correctImages = Array(21).fill('1').concat(Array(9).fill('2'));
+          // 随机打乱
+          for (let i = correctImages.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [correctImages[i], correctImages[j]] = [correctImages[j], correctImages[i]];
+          }
+          // 分配到trials
+          for (let i = 0; i < BLOCK_SIZE; i++) {
+            const trialIndex = block * BLOCK_SIZE + i;
+            trials[trialIndex].Correct_Image = correctImages[i];
+          }
+        }
+        startExperiment();
+      }
     });
   }
-  return block;
-}
-
-// 生成全部120试次
-for (let b = 0; b < 4; b++) {
-  trials = trials.concat(generateBlockTrials());
-}
+});
 
 function startExperiment() {
   timeline.push({
@@ -263,8 +288,8 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < trials.length; i++) {
-    const trial = trials[i];
+  for (let i = 0; i < 2; i++) {          //修改試行数
+    const trial = trials[i % trials.length];
     // ====== 被験者試行 ======
     // 画面3：刺激画面
     timeline.push({
@@ -302,7 +327,16 @@ function startExperiment() {
       on_finish: function(data){
         let key = data.response ? data.response : 0;
         let rt = data.rt ? data.rt : 3000;
-        let isCorrect = (key != 0 && key.toUpperCase() == trial.Correct_Key);
+        let chosenImage = null;
+        if (key === 0) {
+          chosenImage = null; // 未作答
+        } else if (key.toUpperCase() === 'U') {
+          chosenImage = trial.Up_Image;
+        } else if (key.toUpperCase() === 'N') {
+          chosenImage = trial.Down_Image;
+        }
+        // 判断是否正确
+        let isCorrect = (chosenImage !== null && chosenImage === trial.Correct_Image);
         let scoreChange = 0;
         if (key == 0) {
           scoreChange = 0;
@@ -313,20 +347,28 @@ function startExperiment() {
         }
         if (key != 0) totalScore += scoreChange;
 
-        // 记录所有刺激参数
+        // === 随机化参数 ===
+        // Up_Image: 刺激界面上方图片
+        // Down_Image: 刺激界面下方图片
+        // Correct_Image: 反馈界面正确线索图片
+        // chosenImage: 被试实际选择的图片（与刺激界面位置对应）
+        // ================
+
         data.trial_type = "participant";
         data.trial_index = i+1;
         data.choice = key;
+        data.chosenImage = chosenImage; // 记录被试实际选的图片
         data.rt = rt;
         data.isCorrect = isCorrect;
         data.scoreChange = scoreChange;
         data.totalScore = totalScore;
+        data.opponentScore = trial.Fake_Score;
 
-        // 新增：记录本试次的刺激参数
-        data.Up_Image = trial.Up_Image;
-        data.Down_Image = trial.Down_Image;
-        data.Correct_Image = trial.Correct_Image;
-        data.Correct_Key = trial.Correct_Key;
+        // === 随机化参数 ===
+        data.Up_Image = trial.Up_Image;           // 刺激界面上方图片
+        data.Down_Image = trial.Down_Image;       // 刺激界面下方图片
+        data.Correct_Image = trial.Correct_Image; // 反馈界面正确线索图片
+        // =================
       }
     });
     // 画面5：フィードバック画面
