@@ -42,6 +42,26 @@ const jsPsych = initJsPsych({
       // 发送失败的处理，例如提示用户或仍然重定向
       window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
     });
+
+    // 假设你已收集所有问卷答案到 reportData 对象
+    const reportData = {
+      prolific_pid: prolificPID,
+      experiment_time: new Date().toISOString(),
+      report1: jsPsych.data.get().filter({trial_type: 'survey-text'}).values()[0]?.response ?? '',
+      report2_multi: jsPsych.data.get().filter({trial_type: 'survey-multi-select'}).values()[0]?.response ?? '',
+      report2_strategy: jsPsych.data.get().filter({trial_type: 'survey-text'}).values()[1]?.response ?? '',
+      // ...依次提取各自省题的答案
+    };
+
+    fetch('https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/single/save_data.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(reportData)
+    })
+    .then(response => response.json())
+    .then(data => {
+      // 成功/失败处理
+    });
   }
 });
 jsPsych.data.addProperties({prolificPID: prolificPID});
@@ -288,7 +308,7 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < 120; i++) {          //修改試行数
+  for (let i = 0; i < 2; i++) {          //修改試行数
     const trial = trials[i % trials.length];
     // ====== 被験者試行 ======
     // 画面3：刺激画面
@@ -541,4 +561,6 @@ function startExperiment() {
   // ========== 実験開始 ==========
   jsPsych.run(timeline);
 }
+
+
 
