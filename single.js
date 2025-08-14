@@ -280,28 +280,42 @@ function startExperiment() {
       `,
       choices: "NO_KEYS", // 初始设置为不接受按键
       trial_duration: 3000, // 总时长3秒
-      response_ends_trial: true,
+      response_ends_trial: false, // 修改：不自动结束试次
       css_classes: ['jspsych-content'],
       on_load: function() {
         // 记录试次开始时间
         this.startTime = Date.now();
+        this.validResponseReceived = false; // 标记是否收到有效响应
         
-        // 强制阻止500ms内的按键响应
-        this.keyHandler = function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          return false;
-        };
-        document.addEventListener('keydown', this.keyHandler, true);
+        // 添加自定义键盘监听器
+        this.customKeyHandler = function(e) {
+          const currentTime = Date.now() - this.startTime;
+          
+          if (currentTime < 500) {
+            // 500ms内，忽略按键但不结束试次
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          } else if (!this.validResponseReceived) {
+            // 500ms后，处理有效按键
+            const key = e.key.toUpperCase();
+            if (['U', 'N'].includes(key)) {
+              this.validResponseReceived = true;
+              // 手动结束试次
+              jsPsych.finishTrial({
+                response: key,
+                rt: currentTime
+              });
+            }
+          }
+        }.bind(this);
         
-        // 500ms后显示提示并开始接受按键
+        document.addEventListener('keydown', this.customKeyHandler);
+        
+        // 500ms后显示提示
         setTimeout(() => {
           const hint = document.getElementById('practice-choice-hint');
           if (hint) hint.style.display = 'block';
-          
-          // 移除按键阻止器，开始接受按键
-          document.removeEventListener('keydown', this.keyHandler, true);
-          jsPsych.getCurrentTrial().choices = ['U', 'N', 'u', 'n'];
         }, 500);
       },
       on_finish: function(data){
@@ -310,14 +324,14 @@ function startExperiment() {
         
         // 检查是否在500ms无效区间内按键
         if (typeof data.rt === 'number' && data.rt < 500) {
-          // 在无效区间内的按键，完全忽略，当作未作答
+          // 在无效区间内的按键，忽略但不结束试次，继续等待有效选择
           key = 0;
-          rt = 3000; // 超时
+          rt = 0; // 不记录无效区间的RT
         } else if (typeof data.rt === 'number' && data.rt >= 500) {
           // 有效区间内的按键，记录完整反应时
           rt = data.rt;
         } else {
-          // 未作答
+          // 未作答（超时）
           rt = 3000;
         }
         
@@ -325,7 +339,7 @@ function startExperiment() {
         let isCorrect = (key != 0 && key.toUpperCase() == correctKey.toUpperCase());
         let scoreChange = 0;
         if (key == 0) {
-          scoreChange = 0;
+          scoreChange = -10; // 修改：超时或无效选择都-10分
         } else if (isCorrect) {
           scoreChange = 10;
         } else {
@@ -343,8 +357,8 @@ function startExperiment() {
       },
       on_finish: function() {
         // 清理事件监听器
-        if (this.keyHandler) {
-          document.removeEventListener('keydown', this.keyHandler, true);
+        if (this.customKeyHandler) {
+          document.removeEventListener('keydown', this.customKeyHandler);
         }
       },
       data: { is_practice: true }
@@ -486,28 +500,42 @@ function startExperiment() {
       `,
       choices: "NO_KEYS", // 初始设置为不接受按键
       trial_duration: 3000, // 总时长3秒
-      response_ends_trial: true,
+      response_ends_trial: false, // 修改：不自动结束试次
       css_classes: ['jspsych-content'],
       on_load: function() {
         // 记录试次开始时间
         this.startTime = Date.now();
+        this.validResponseReceived = false; // 标记是否收到有效响应
         
-        // 强制阻止500ms内的按键响应
-        this.keyHandler = function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          return false;
-        };
-        document.addEventListener('keydown', this.keyHandler, true);
+        // 添加自定义键盘监听器
+        this.customKeyHandler = function(e) {
+          const currentTime = Date.now() - this.startTime;
+          
+          if (currentTime < 500) {
+            // 500ms内，忽略按键但不结束试次
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          } else if (!this.validResponseReceived) {
+            // 500ms后，处理有效按键
+            const key = e.key.toUpperCase();
+            if (['U', 'N'].includes(key)) {
+              this.validResponseReceived = true;
+              // 手动结束试次
+              jsPsych.finishTrial({
+                response: key,
+                rt: currentTime
+              });
+            }
+          }
+        }.bind(this);
         
-        // 500ms后显示提示并开始接受按键
+        document.addEventListener('keydown', this.customKeyHandler);
+        
+        // 500ms后显示提示
         setTimeout(() => {
           const hint = document.getElementById('choice-hint');
           if (hint) hint.style.display = 'block';
-          
-          // 移除按键阻止器，开始接受按键
-          document.removeEventListener('keydown', this.keyHandler, true);
-          jsPsych.getCurrentTrial().choices = ['U', 'N', 'u', 'n'];
         }, 500);
       },
       on_finish: function(data){
@@ -539,7 +567,7 @@ function startExperiment() {
         let isCorrect = (chosenImage !== null && chosenImage === trial.Correct_Image);
         let scoreChange = 0;
         if (key == 0) {
-          scoreChange = -10;
+          scoreChange = -10; // 修改：超时或无效选择都-10分
         } else if (isCorrect) {
           scoreChange = 10;
         } else {
@@ -572,8 +600,8 @@ function startExperiment() {
       },
       on_finish: function() {
         // 清理事件监听器
-        if (this.keyHandler) {
-          document.removeEventListener('keydown', this.keyHandler, true);
+        if (this.customKeyHandler) {
+          document.removeEventListener('keydown', this.customKeyHandler);
         }
       }
     });
