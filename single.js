@@ -283,12 +283,24 @@ function startExperiment() {
       response_ends_trial: true,
       css_classes: ['jspsych-content'],
       on_load: function() {
+        // 记录试次开始时间
+        this.startTime = Date.now();
+        
+        // 强制阻止500ms内的按键响应
+        this.keyHandler = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        };
+        document.addEventListener('keydown', this.keyHandler, true);
+        
         // 500ms后显示提示并开始接受按键
         setTimeout(() => {
           const hint = document.getElementById('practice-choice-hint');
           if (hint) hint.style.display = 'block';
           
-          // 修改jsPsych trial的choices，开始接受按键
+          // 移除按键阻止器，开始接受按键
+          document.removeEventListener('keydown', this.keyHandler, true);
           jsPsych.getCurrentTrial().choices = ['U', 'N', 'u', 'n'];
         }, 500);
       },
@@ -296,13 +308,14 @@ function startExperiment() {
         let key = data.response ? data.response : 0;
         let rt = 0;
         
-        // 计算有效反应时：500ms是强制思考时间，算在反应时内
-        if (typeof data.rt === 'number' && data.rt >= 500) {
-          rt = data.rt; // 记录完整反应时（包含500ms思考时间）
-        } else if (typeof data.rt === 'number' && data.rt < 500) {
-          // 在无效区间内的按键，记录为无效
+        // 检查是否在500ms无效区间内按键
+        if (typeof data.rt === 'number' && data.rt < 500) {
+          // 在无效区间内的按键，完全忽略，当作未作答
           key = 0;
           rt = 3000; // 超时
+        } else if (typeof data.rt === 'number' && data.rt >= 500) {
+          // 有效区间内的按键，记录完整反应时
+          rt = data.rt;
         } else {
           // 未作答
           rt = 3000;
@@ -327,6 +340,12 @@ function startExperiment() {
         data.isCorrect = isCorrect;
         data.scoreChange = scoreChange;
         data.practiceScore = practiceScore;
+      },
+      on_finish: function() {
+        // 清理事件监听器
+        if (this.keyHandler) {
+          document.removeEventListener('keydown', this.keyHandler, true);
+        }
       },
       data: { is_practice: true }
     });
@@ -470,12 +489,24 @@ function startExperiment() {
       response_ends_trial: true,
       css_classes: ['jspsych-content'],
       on_load: function() {
+        // 记录试次开始时间
+        this.startTime = Date.now();
+        
+        // 强制阻止500ms内的按键响应
+        this.keyHandler = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        };
+        document.addEventListener('keydown', this.keyHandler, true);
+        
         // 500ms后显示提示并开始接受按键
         setTimeout(() => {
           const hint = document.getElementById('choice-hint');
           if (hint) hint.style.display = 'block';
           
-          // 修改jsPsych trial的choices，开始接受按键
+          // 移除按键阻止器，开始接受按键
+          document.removeEventListener('keydown', this.keyHandler, true);
           jsPsych.getCurrentTrial().choices = ['U', 'N', 'u', 'n'];
         }, 500);
       },
@@ -483,13 +514,14 @@ function startExperiment() {
         let key = data.response ? data.response : 0;
         let rt = 0;
         
-        // 计算有效反应时：500ms是强制思考时间，算在反应时内
-        if (typeof data.rt === 'number' && data.rt >= 500) {
-          rt = data.rt; // 记录完整反应时（包含500ms思考时间）
-        } else if (typeof data.rt === 'number' && data.rt < 500) {
-          // 在无效区间内的按键，记录为无效
+        // 检查是否在500ms无效区间内按键
+        if (typeof data.rt === 'number' && data.rt < 500) {
+          // 在无效区间内的按键，完全忽略，当作未作答
           key = 0;
           rt = 3000; // 超时
+        } else if (typeof data.rt === 'number' && data.rt >= 500) {
+          // 有效区间内的按键，记录完整反应时
+          rt = data.rt;
         } else {
           // 未作答
           rt = 3000;
@@ -537,6 +569,12 @@ function startExperiment() {
         data.Down_Image = trial.Down_Image;       // 刺激界面下方图片
         data.Correct_Image = trial.Correct_Image; // 反馈界面正确线索图片
         // =================
+      },
+      on_finish: function() {
+        // 清理事件监听器
+        if (this.keyHandler) {
+          document.removeEventListener('keydown', this.keyHandler, true);
+        }
       }
     });
     // 画面5：フィードバック画面
