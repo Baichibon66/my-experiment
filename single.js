@@ -8,6 +8,11 @@ console.log('Prolific ID:', prolificPID);
 
 const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=CZEQN2PE"; // Completion Code
 
+// ========== さくら（sakura）サーバ設定 ==========
+// TODO: 将下方占位URL替换为实际さくら服务器端点
+// const SAKURA_SERVER_URL = "https://sakura-server.example.com/single/";
+// const CHEAT_REPORT_URL = SAKURA_SERVER_URL + "cheat_report.php";
+
 // ========== 1. パス設定 ==========
 const IMAGE_PATH = "formalimages/"; // images folder
 const TRIALS_XLSX_PATH = "experiment_data/formal_trials.csv"; // pseudorandom 試行表（順、手がかりの図、桜について）
@@ -17,51 +22,12 @@ const PRACTICE_TRIALS_XLSX_PATH = "experiment_data/practice_trials.csv";
 // ========== 2. jsPsych全体設定 ==========
 const jsPsych = initJsPsych({
   on_finish: function() {
-    // 获取实验数据，这里获取的是所有数据
-    const experimentData = jsPsych.data.get().json(); // 获取 JSON 格式的数据
-
-    // 替换为您的 Google Apps Script Web 应用 URL
-    const serverURL = 'https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/single/save_data.php';
-     // <-- 将此替换为您实际的 URL
-
-    // 使用 fetch 发送数据到 Google Apps Script
-    fetch(serverURL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: experimentData // 这里 experimentData 是 JSON 字符串
-    })
-    .then(response => {
-      console.log('Data sent to Google Sheet', response);
-      // 发送成功后，可以重定向到完成页面或显示感谢信息
-      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
-    })
-    .catch((error) => {
-      console.error('Error sending data:', error);
-      // 发送失败的处理，例如提示用户或仍然重定向
-      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
-    });
-
-    // 假设你已收集所有问卷答案到 reportData 对象
-    const reportData = {
-      prolific_pid: prolificPID,
-      experiment_time: new Date().toISOString(),
-      report1: jsPsych.data.get().filter({trial_type: 'survey-text'}).values()[0]?.response ?? '',
-      report2_multi: jsPsych.data.get().filter({trial_type: 'survey-multi-select'}).values()[0]?.response ?? '',
-      report2_strategy: jsPsych.data.get().filter({trial_type: 'survey-text'}).values()[1]?.response ?? '',
-      // ...依次提取各自省题的答案
-    };
-
-    fetch('https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/single/save_data.php', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(reportData)
-    })
-    .then(response => response.json())
-    .then(data => {
-      // 成功/失败处理
-    });
+    // 研究2：暂不进行正式数据的网络传输。
+    // 重定向由最后的"感谢画面"负责触发。
+    console.log('Experiment finished. No data transmission for Study 2 baseline.');
+    
+    // ========== 新添加：本地下载CSV数据 ==========
+    downloadExperimentData();
   }
 });
 jsPsych.data.addProperties({prolificPID: prolificPID});
@@ -77,6 +43,129 @@ const globalStyle = `
 const style = document.createElement('style');
 style.innerHTML = globalStyle;
 document.head.appendChild(style);
+
+// ========== 防作弊机制 ==========
+let cheatDetected = false;
+
+// ========== 新添加：本地下载CSV数据函数 ==========
+function downloadExperimentData() {
+  try {
+    // 获取所有实验数据
+    const allData = jsPsych.data.get();
+    
+    // 过滤掉练习数据，只保留正式实验数据
+    const formalData = allData.filter(trial => !trial.is_practice);
+    
+    // 转换为CSV格式
+    const csvContent = convertToCSV(formalData);
+    
+    // 创建下载链接
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', OUTPUT_XLSX_NAME);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    console.log('Experiment data downloaded successfully as CSV');
+  } catch (error) {
+    console.error('Error downloading experiment data:', error);
+  }
+}
+
+// ========== 新添加：CSV转换函数 ==========
+function convertToCSV(data) {
+  if (data.length === 0) return '';
+  
+  // 获取所有列名
+  const headers = Object.keys(data[0]);
+  
+  // 创建CSV头部
+  const csvHeader = headers.join(',');
+  
+  // 创建CSV数据行
+  const csvRows = data.map(row => {
+    return headers.map(header => {
+      const value = row[header];
+      // 处理包含逗号、引号或换行符的值
+      if (value === null || value === undefined) return '';
+      const stringValue = String(value);
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
+    }).join(',');
+  });
+  
+  // 组合头部和数据行
+  return [csvHeader, ...csvRows].join('\n');
+}
+
+// ========== 注释掉：服务器作弊报告功能 ==========
+/*
+function reportCheatToServer(eventType, extra = {}) {
+  try {
+    fetch(CHEAT_REPORT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prolific_pid: prolificPID,
+        timestamp: new Date().toISOString(),
+        event_type: eventType,
+        user_agent: navigator.userAgent,
+        experiment_start: experimentStartTime,
+        ...extra
+      })
+    }).catch(() => {});
+  } catch (_) {}
+}
+*/
+
+function abortExperimentDueToCheat(reason) {
+  if (cheatDetected) return;
+  cheatDetected = true;
+  try {
+    jsPsych.data.addProperties({ cheatDetected: true, cheatReason: reason });
+  } catch (_) {}
+  
+  // ========== 注释掉：服务器作弊报告 ==========
+  // reportCheatToServer('cheat_detected', { reason });
+  
+  try {
+    jsPsych.endExperiment(`
+      <div style='font-size: 28px; text-align: center; color: white;'>
+        不正行為が検出されたため、実験を中止します。
+      </div>
+    `);
+  } catch (_) {
+    // 兜底：直接替换页面
+    document.body.innerHTML = "<div style='font-size:28px;text-align:center;color:white;background:black;height:100vh;display:flex;align-items:center;justify-content:center;'>不正行為が検出されたため、実験を中止します。</div>";
+  }
+}
+
+// 键盘组合检测：F12、Ctrl+U、Ctrl+Shift+I/J/C
+window.addEventListener('keydown', function(e) {
+  const key = (e.key || '').toUpperCase();
+  if (key === 'F12' || (e.ctrlKey && !e.shiftKey && key === 'U') || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(key))) {
+    e.preventDefault();
+    abortExperimentDueToCheat(`key:${key}`);
+  }
+}, true);
+
+// 简易DevTools开启检测（尺寸差异法）
+let lastDevtoolsState = false;
+setInterval(() => {
+  if (cheatDetected) return;
+  const threshold = 160;
+  const devtoolsLike = Math.abs(window.outerWidth - window.innerWidth) > threshold || Math.abs(window.outerHeight - window.innerHeight) > threshold;
+  if (devtoolsLike && !lastDevtoolsState) {
+    lastDevtoolsState = true;
+    abortExperimentDueToCheat('devtools_open');
+  }
+}, 1000);
 
 // ========== 3. 試行表の読み込み ==========
 let practiceTrials = [];
@@ -118,7 +207,7 @@ Papa.parse(PRACTICE_TRIALS_XLSX_PATH, {
 
         for (let block = 0; block < BLOCK_NUM; block++) {
           // 生成21个'1'和9个'2'的正确线索图片分配
-          let correctImages = Array(21).fill('1').concat(Array(9).fill('2'));
+          let correctImages = Array(9).fill('1').concat(Array(21).fill('2'));
           // 随机打乱
           for (let i = correctImages.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -179,7 +268,22 @@ function startExperiment() {
       css_classes: ['jspsych-content'],
       data: { is_practice: true } // 标记为练习试次
     });
-    // 画面4：选择画面 (练习)
+    // 画面4-0：选择前置界面（500ms内按键无效，显示同样提示，但不接收按键）
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='font-size: 48px; text-align: center;'>
+          <p>どちらに賭けますか？</p>
+          <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
+        </div>
+      `,
+      choices: "NO_KEYS",
+      trial_duration: 500,
+      css_classes: ['jspsych-content'],
+      data: { is_practice: true }
+    });
+
+    // 画面4：选择画面 (练习，正式接收按键)
     timeline.push({
       type: jsPsychHtmlKeyboardResponse,
       stimulus: `
@@ -187,15 +291,23 @@ function startExperiment() {
           <!--  -->
           <p>どちらに賭けますか？</p>
           <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
+          <div id='practice-choice-hint' style='display:none; font-size: 22px; margin-top: 24px; color: #ffd966;'>今、選択してください。</div>
         </div>
       `,
+      on_load: function() {
+        setTimeout(() => {
+          const hint = document.getElementById('practice-choice-hint');
+          if (hint) hint.style.display = 'block';
+        }, 500);
+      },
       choices: ['U', 'N', 'u', 'n'],
-      trial_duration: 3000,
+      trial_duration: 2500,
       response_ends_trial: true,
       css_classes: ['jspsych-content'],
       on_finish: function(data){
         let key = data.response ? data.response : 0;
-        let rt = data.rt ? data.rt : 3000;
+        // 记录从选择画面初次出现起的RT：有效窗口内键入则 data.rt + 500；未作答则 3000
+        let rt = (typeof data.rt === 'number') ? (data.rt + 500) : 3000;
         let correctKey = trial.Correct_Key;
         let isCorrect = (key != 0 && key.toUpperCase() == correctKey.toUpperCase());
         let scoreChange = 0;
@@ -284,11 +396,25 @@ function startExperiment() {
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
         <!-- ルール説明 -->
-        <p>当たれば+10pt、外れれば－10pt、3秒以内に賭けなければ±0pt</p>　
+        <p>当たれば+10pt、外れれば－10pt、3秒以内に賭けなければ-10pt</p>　
         <p style='font-size: 20px; margin-top: 40px;'>スペースキーを押してゲームを始めます。</p>
       </div>
       `,
     choices: [' '],
+    css_classes: ['jspsych-content'],
+  });
+
+  // ========== 新增：建议界面（无限时，空格继续） ==========
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style='font-size: 28px; text-align: center;'>
+        <p>ここに「提案／アドバイス」用のテキストを表示します（後で確定）。</p>
+        <p style='font-size: 20px; margin-top: 40px;'>スペースキーで次へ進みます。</p>
+      </div>
+    `,
+    choices: [' '],
+    trial_duration: null,
     css_classes: ['jspsych-content'],
   });
 
@@ -308,7 +434,7 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < 3; i++) {          //修改試行数
+  for (let i = 0; i < 120; i++) {          //修改試行数
     const trial = trials[i % trials.length];
     // ====== 被験者試行 ======
     // 画面3：刺激画面
@@ -330,7 +456,21 @@ function startExperiment() {
       trial_duration: Math.floor(Math.random() * 151) + 1000,
       css_classes: ['jspsych-content'],
     });
-    // 画面4：選択画面
+    // 画面4-0：選択前置（500ms，键无效）
+    timeline.push({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style='font-size: 48px; text-align: center;'>
+          <p>どちらに賭けますか？</p>
+          <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
+        </div>
+      `,
+      choices: "NO_KEYS",
+      trial_duration: 500,
+      css_classes: ['jspsych-content'],
+    });
+
+    // 画面4：選択画面（有效按键窗口）
     timeline.push({
       type: jsPsychHtmlKeyboardResponse,
       stimulus: `
@@ -338,15 +478,23 @@ function startExperiment() {
           <!--  -->
           <p>どちらに賭けますか？</p>
           <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
+          <div id='choice-hint' style='display:none; font-size: 22px; margin-top: 24px; color: #ffd966;'>今、選択してください。</div>
         </div>
       `,
+      on_load: function() {
+        setTimeout(() => {
+          const hint = document.getElementById('choice-hint');
+          if (hint) hint.style.display = 'block';
+        }, 500);
+      },
       choices: ['U', 'N', 'u', 'n'],
-      trial_duration: 3000,
+      trial_duration: 2500,
       response_ends_trial: true,
       css_classes: ['jspsych-content'],
       on_finish: function(data){
         let key = data.response ? data.response : 0;
-        let rt = data.rt ? data.rt : 3000;
+        // 记录从选择画面初次出现起的RT：有效窗口内键入则 data.rt + 500；未作答则 3000
+        let rt = (typeof data.rt === 'number') ? (data.rt + 500) : 3000;
         let chosenImage = null;
         if (key === 0) {
           chosenImage = null; // 未作答
@@ -359,7 +507,7 @@ function startExperiment() {
         let isCorrect = (chosenImage !== null && chosenImage === trial.Correct_Image);
         let scoreChange = 0;
         if (key == 0) {
-          scoreChange = 0;
+          scoreChange = -10;
         } else if (isCorrect) {
           scoreChange = 10;
         } else {
@@ -428,7 +576,7 @@ function startExperiment() {
     stimulus: function() {
     return`
       <div style='font-size: 28px; text-align: center;'>
-        <p>お疲れ様でした！スペースキーを押して質問セクションに進んでください。</p>
+        <p>お疲れ様でした！スペースキーを押して終了します。</p>
         <p style='font-size: 24px; margin-top: 40px;'>Total Score：${totalScore}pt</p>
       </div>
     `;
@@ -437,110 +585,6 @@ function startExperiment() {
     trial_duration: null,
     css_classes: ['jspsych-content'],
   });
-
-  // ========== 自省報告 ==========
-  // 以下のプラグインをHTMLにインポートしてください：
-  // <script src="jspsych/dist/plugin-survey-likert.js"></script>
-  // <script src="jspsych/dist/plugin-survey-multi-choice.js"></script>
-  // <script src="jspsych/dist/plugin-survey-text.js"></script>
-
-  // 報告1：選択と報酬の関係
-  timeline.push({
-    type: jsPsychSurveyText,
-    questions: [
-      {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">あなたは、画面に表示された「手がかり」と「報酬確率」の関係をどの程度理解していましたか？具体的に説明してください。</div>',
-        rows: 4,
-        columns: 40,
-        required: false
-      }
-    ]
-  });
-
-  // 報告2：選択の基準+戦略の自由記述
-  timeline.push({
-    type: jsPsychSurveyMultiSelect,
-    questions: [
-      {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">あなたの選択は主にどの要因に基づいていましたか？（複数選択可）</div>',
-       // options: ['手がかりの視覚的特徴（色・形など）', '過去の報酬/損失のフィードバック', '直感やランダムな選択', '相手の選択結果', 'その他'],
-        options: ['手がかりの視覚的特徴（色・形など）', '過去の報酬/損失のフィードバック', '直感やランダムな選択', 'その他'],
-        required: false
-      }
-    ]
-  });
-  timeline.push({
-    type: jsPsychSurveyText,
-    questions: [
-      {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">ゲーム中の選択戦略を具体的に説明してください（例：「最初はランダムに選び、報酬が多い方を続けた」）。</div>',
-        rows: 4,
-        columns: 40,
-        required: false
-      }
-    ]
-  });
-
-  // 報告3：相手の影響（他者のみ）
-  /*timeline.push({
-    type: jsPsychSurveyLikert,
-    questions: [
-      {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">相手の選択結果は、あなたの次の選択にどの程度影響しましたか？</div>',
-        labels: ['全く影響しなかった', '少し影響した', '中程度に影響した', '強く影響した', '非常に強く影響した'],
-        required: true
-      }
-    ]
-  });
-  timeline.push({
-    type: jsPsychSurveyText,
-    questions: [
-      {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">相手がどのようなルールで選択していたと思いますか？</div>',
-        rows: 4,
-        columns: 40,
-        required: false
-      }
-    ]
-  });
-*/
-
-  // 報告4：フィードバックの影響
-  timeline.push({
-    type: jsPsychSurveyLikert,
-    questions: [
-      {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">報酬や損失のフィードバックは、その後の選択にどの程度影響しましたか？</div>',
-        labels: ['<span class="white">全く影響しなかった</span>', '<span class="white">少し影響した</span>', '<span class="white">中程度に影響した</span>', '<span class="white">強く影響した</span>', '<span class="white">非常に強く影響した</span>'],
-        required: true
-      }
-    ]
-  });
-  timeline.push({
-    type: jsPsychSurveyText,
-    questions: [
-      {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">ゲーム中に混乱した点や疑問に思った点はありますか？</div>',
-        rows: 4,
-        columns: 40,
-        required: false
-      }
-    ]
-  });
-
-  // 報告5：アドバイス
-  timeline.push({
-    type: jsPsychSurveyText,
-    questions: [
-      {
-        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">実験全体に関する意見や提案があれば自由にご記入ください。</div>',
-        rows: 6,
-        columns: 60,
-        required: false
-      }
-    ]
-  });
-
   // ========== 画面8：感谢画面 ==========
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
@@ -553,14 +597,13 @@ function startExperiment() {
     trial_duration: null,
     css_classes: ['jspsych-content'],
     on_finish: function() {
-      // Redirect to completion URL after space key is pressed
-      window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+      // 未检测到作弊时才重定向
+      if (!cheatDetected) {
+        window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+      }
     }
   });
 
   // ========== 実験開始 ==========
   jsPsych.run(timeline);
 }
-
-
-
