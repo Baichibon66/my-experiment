@@ -268,46 +268,46 @@ function startExperiment() {
       css_classes: ['jspsych-content'],
       data: { is_practice: true } // 标记为练习试次
     });
-    // 画面4-0：选择前置界面（500ms内按键无效，显示同样提示，但不接收按键）
+    // ========== 新修改：练习选择界面（包含500ms无效区间） ==========
     timeline.push({
       type: jsPsychHtmlKeyboardResponse,
       stimulus: `
         <div style='font-size: 48px; text-align: center;'>
-          <p>どちらに賭けますか？</p>
-          <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
-        </div>
-      `,
-      choices: "NO_KEYS",
-      trial_duration: 500,
-      css_classes: ['jspsych-content'],
-      data: { is_practice: true }
-    });
-
-    // 画面4：选择画面 (练习，正式接收按键)
-    timeline.push({
-      type: jsPsychHtmlKeyboardResponse,
-      stimulus: `
-        <div style='font-size: 48px; text-align: center;'>
-          <!--  -->
           <p>どちらに賭けますか？</p>
           <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
           <div id='practice-choice-hint' style='display:none; font-size: 22px; margin-top: 24px; color: #ffd966;'>今、選択してください。</div>
         </div>
       `,
+      choices: "NO_KEYS", // 初始设置为不接受按键
+      trial_duration: 3000, // 总时长3秒
+      response_ends_trial: true,
+      css_classes: ['jspsych-content'],
       on_load: function() {
+        // 500ms后显示提示并开始接受按键
         setTimeout(() => {
           const hint = document.getElementById('practice-choice-hint');
           if (hint) hint.style.display = 'block';
+          
+          // 修改jsPsych trial的choices，开始接受按键
+          jsPsych.getCurrentTrial().choices = ['U', 'N', 'u', 'n'];
         }, 500);
       },
-      choices: ['U', 'N', 'u', 'n'],
-      trial_duration: 2500,
-      response_ends_trial: true,
-      css_classes: ['jspsych-content'],
       on_finish: function(data){
         let key = data.response ? data.response : 0;
-        // 记录从选择画面初次出现起的RT：有效窗口内键入则 data.rt + 500；未作答则 3000
-        let rt = (typeof data.rt === 'number') ? (data.rt + 500) : 3000;
+        let rt = 0;
+        
+        // 计算有效反应时：500ms是强制思考时间，算在反应时内
+        if (typeof data.rt === 'number' && data.rt >= 500) {
+          rt = data.rt; // 记录完整反应时（包含500ms思考时间）
+        } else if (typeof data.rt === 'number' && data.rt < 500) {
+          // 在无效区间内的按键，记录为无效
+          key = 0;
+          rt = 3000; // 超时
+        } else {
+          // 未作答
+          rt = 3000;
+        }
+        
         let correctKey = trial.Correct_Key;
         let isCorrect = (key != 0 && key.toUpperCase() == correctKey.toUpperCase());
         let scoreChange = 0;
@@ -318,18 +318,17 @@ function startExperiment() {
         } else {
           scoreChange = -10;
         }
-        if (key != 0) practiceScore += scoreChange; // 修改：更新练习分数
-        data.trial_type = "practice"; // 修改：标记为练习试次类型
+        if (key != 0) practiceScore += scoreChange;
+        
+        data.trial_type = "practice";
         data.trial_index = i+1;
         data.choice = key;
         data.rt = rt;
         data.isCorrect = isCorrect;
         data.scoreChange = scoreChange;
-        data.practiceScore = practiceScore; // 新增：记录练习分数
-        // TODO: 决定是否记录其他练习数据到 jsPsych.data
-        // 当前设置下，标记了 is_practice: true 的数据会被 on_finish 过滤掉
+        data.practiceScore = practiceScore;
       },
-      data: { is_practice: true } // 标记为练习试次
+      data: { is_practice: true }
     });
     // 画面5：フィードバック画面 (练习)
     timeline.push({
@@ -456,45 +455,46 @@ function startExperiment() {
       trial_duration: Math.floor(Math.random() * 151) + 1000,
       css_classes: ['jspsych-content'],
     });
-    // 画面4-0：選択前置（500ms，键无效）
+    // ========== 新修改：正式实验选择界面（包含500ms无效区间） ==========
     timeline.push({
       type: jsPsychHtmlKeyboardResponse,
       stimulus: `
         <div style='font-size: 48px; text-align: center;'>
-          <p>どちらに賭けますか？</p>
-          <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
-        </div>
-      `,
-      choices: "NO_KEYS",
-      trial_duration: 500,
-      css_classes: ['jspsych-content'],
-    });
-
-    // 画面4：選択画面（有效按键窗口）
-    timeline.push({
-      type: jsPsychHtmlKeyboardResponse,
-      stimulus: `
-        <div style='font-size: 48px; text-align: center;'>
-          <!--  -->
           <p>どちらに賭けますか？</p>
           <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
           <div id='choice-hint' style='display:none; font-size: 22px; margin-top: 24px; color: #ffd966;'>今、選択してください。</div>
         </div>
       `,
+      choices: "NO_KEYS", // 初始设置为不接受按键
+      trial_duration: 3000, // 总时长3秒
+      response_ends_trial: true,
+      css_classes: ['jspsych-content'],
       on_load: function() {
+        // 500ms后显示提示并开始接受按键
         setTimeout(() => {
           const hint = document.getElementById('choice-hint');
           if (hint) hint.style.display = 'block';
+          
+          // 修改jsPsych trial的choices，开始接受按键
+          jsPsych.getCurrentTrial().choices = ['U', 'N', 'u', 'n'];
         }, 500);
       },
-      choices: ['U', 'N', 'u', 'n'],
-      trial_duration: 2500,
-      response_ends_trial: true,
-      css_classes: ['jspsych-content'],
       on_finish: function(data){
         let key = data.response ? data.response : 0;
-        // 记录从选择画面初次出现起的RT：有效窗口内键入则 data.rt + 500；未作答则 3000
-        let rt = (typeof data.rt === 'number') ? (data.rt + 500) : 3000;
+        let rt = 0;
+        
+        // 计算有效反应时：500ms是强制思考时间，算在反应时内
+        if (typeof data.rt === 'number' && data.rt >= 500) {
+          rt = data.rt; // 记录完整反应时（包含500ms思考时间）
+        } else if (typeof data.rt === 'number' && data.rt < 500) {
+          // 在无效区间内的按键，记录为无效
+          key = 0;
+          rt = 3000; // 超时
+        } else {
+          // 未作答
+          rt = 3000;
+        }
+        
         let chosenImage = null;
         if (key === 0) {
           chosenImage = null; // 未作答
