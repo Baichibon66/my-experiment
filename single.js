@@ -319,14 +319,15 @@ function startExperiment() {
         }, 500);
       },
       on_finish: function(data){
+        // 处理响应与计分
         let key = data.response ? data.response : 0;
         let rt = 0;
-        
+
         // 检查是否在500ms无效区间内按键
         if (typeof data.rt === 'number' && data.rt < 500) {
-          // 在无效区间内的按键，忽略但不结束试次，继续等待有效选择
+          // 在无效区间内的按键，忽略但不结束试次（此情形正常不应发生，因为试次不会因<500ms而结束）
           key = 0;
-          rt = 0; // 不记录无效区间的RT
+          rt = 0;
         } else if (typeof data.rt === 'number' && data.rt >= 500) {
           // 有效区间内的按键，记录完整反应时
           rt = data.rt;
@@ -334,19 +335,21 @@ function startExperiment() {
           // 未作答（超时）
           rt = 3000;
         }
-        
-        let correctKey = trial.Correct_Key;
-        let isCorrect = (key != 0 && key.toUpperCase() == correctKey.toUpperCase());
+
+        const correctKey = trial.Correct_Key;
+        const isCorrect = (key != 0 && key.toUpperCase() === String(correctKey).toUpperCase());
         let scoreChange = 0;
         if (key == 0) {
-          scoreChange = -10; // 修改：超时或无效选择都-10分
+          scoreChange = -10; // 超时：-10分
         } else if (isCorrect) {
           scoreChange = 10;
         } else {
           scoreChange = -10;
         }
-        if (key != 0) practiceScore += scoreChange;
-        
+
+        // 累加练习分数（包含超时）
+        practiceScore += scoreChange;
+
         data.trial_type = "practice";
         data.trial_index = i+1;
         data.choice = key;
@@ -354,8 +357,7 @@ function startExperiment() {
         data.isCorrect = isCorrect;
         data.scoreChange = scoreChange;
         data.practiceScore = practiceScore;
-      },
-      on_finish: function() {
+
         // 清理事件监听器
         if (this.customKeyHandler) {
           document.removeEventListener('keydown', this.customKeyHandler);
@@ -573,7 +575,8 @@ function startExperiment() {
         } else {
           scoreChange = -10;
         }
-        if (key != 0) totalScore += scoreChange;
+        // 总分应包含超时与错误的扣分
+        totalScore += scoreChange;
 
         // === 随机化参数 ===
         // Up_Image: 刺激界面上方图片
@@ -597,8 +600,7 @@ function startExperiment() {
         data.Down_Image = trial.Down_Image;       // 刺激界面下方图片
         data.Correct_Image = trial.Correct_Image; // 反馈界面正确线索图片
         // =================
-      },
-      on_finish: function() {
+
         // 清理事件监听器
         if (this.customKeyHandler) {
           document.removeEventListener('keydown', this.customKeyHandler);
