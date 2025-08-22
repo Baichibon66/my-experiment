@@ -52,12 +52,20 @@ function downloadExperimentData() {
   try {
     // 获取所有实验数据
     const allData = jsPsych.data.get();
+    console.log('All data:', allData); // 调试用
     
     // 过滤掉练习数据，只保留正式实验数据
     const formalData = allData.filter(trial => !trial.is_practice);
+    console.log('Formal data:', formalData); // 调试用
+    
+    if (formalData.length === 0) {
+      console.warn('No formal experiment data found');
+      return;
+    }
     
     // 转换为CSV格式
     const csvContent = convertToCSV(formalData);
+    console.log('CSV content:', csvContent); // 调试用
     
     // 创建下载链接
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -70,9 +78,27 @@ function downloadExperimentData() {
     link.click();
     document.body.removeChild(link);
     
+    // 清理URL对象
+    URL.revokeObjectURL(url);
+    
     console.log('Experiment data downloaded successfully as CSV');
   } catch (error) {
     console.error('Error downloading experiment data:', error);
+    // 尝试备用下载方法
+    try {
+      const allData = jsPsych.data.get();
+      const csvContent = convertToCSV(allData);
+      const dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", OUTPUT_XLSX_NAME);
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+      console.log('Experiment data downloaded using backup method');
+    } catch (backupError) {
+      console.error('Backup download method also failed:', backupError);
+    }
   }
 }
 
@@ -238,6 +264,33 @@ function startExperiment() {
       </div>
     `,
     choices: [' '],
+    css_classes: ['jspsych-content'],
+  });
+
+  // ========== 新添加：图片说明界面 ==========
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style='display: flex; justify-content: center; align-items: center; height: 100vh;'>
+        <div style='text-align: center;'>
+          <div style='display: flex; justify-content: space-around; width: 600px; margin-bottom: 40px;'>
+            <div>
+              <img src='${IMAGE_PATH}1.png' style='height: 120px; margin-bottom: 20px;'>
+              <div style='font-size: 24px; color: white;'>图片1</div>
+            </div>
+            <div>
+              <img src='${IMAGE_PATH}2.png' style='height: 120px; margin-bottom: 20px;'>
+              <div style='font-size: 24px; color: white;'>图片2</div>
+            </div>
+          </div>
+          <div style='font-size: 20px; color: #ffd966; margin-top: 40px;'>
+            按空格键切换至下一界面
+          </div>
+        </div>
+      </div>
+    `,
+    choices: [' '],
+    trial_duration: null, // 无时间限制
     css_classes: ['jspsych-content'],
   });
 
