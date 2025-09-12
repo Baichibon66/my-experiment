@@ -52,7 +52,7 @@ function downloadExperimentData() {
   
   try {
     // 获取所有实验数据
-    const allData = jsPsych.data.get();
+    const allData = jsPsych.data.get().values();
     console.log('获取到所有数据，共', allData.length, '条记录');
     
     // 过滤掉练习数据，只保留正式实验数据
@@ -79,7 +79,7 @@ function downloadExperimentData() {
     // 尝试备用下载方法
     try {
       console.log('尝试备用下载方法...');
-      const allData = jsPsych.data.get();
+      const allData = jsPsych.data.get().values();
       const csvContent = convertToCSV(allData);
       downloadCSV(csvContent, 'backup_' + OUTPUT_XLSX_NAME);
     } catch (backupError) {
@@ -216,19 +216,26 @@ function downloadCSV(csvContent, filename) {
 
 // ========== 新添加：CSV转换函数 ==========
 function convertToCSV(data) {
-  if (data.length === 0) return '';
-  
-  // 获取所有列名
-  const headers = Object.keys(data[0]);
-  
-  // 创建CSV头部
+  if (!Array.isArray(data) || data.length === 0) return '';
+
+  // 过滤掉 null/undefined/空对象 的记录
+  const sanitized = data.filter(row => row && typeof row === 'object' && Object.keys(row).length > 0);
+  if (sanitized.length === 0) return '';
+
+  // 合并所有字段，得到完整列集合（避免仅以第一行作为列头导致字段缺失）
+  const headerSet = new Set();
+  sanitized.forEach(row => {
+    Object.keys(row).forEach(k => headerSet.add(k));
+  });
+  const headers = Array.from(headerSet);
+
+  // 生成CSV头
   const csvHeader = headers.join(',');
-  
-  // 创建CSV数据行
-  const csvRows = data.map(row => {
+
+  // 生成CSV行
+  const csvRows = sanitized.map(row => {
     return headers.map(header => {
       const value = row[header];
-      // 处理包含逗号、引号或换行符的值
       if (value === null || value === undefined) return '';
       const stringValue = String(value);
       if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
@@ -237,8 +244,7 @@ function convertToCSV(data) {
       return stringValue;
     }).join(',');
   });
-  
-  // 组合头部和数据行
+
   return [csvHeader, ...csvRows].join('\n');
 }
 
@@ -883,7 +889,7 @@ function startExperiment() {
           
           try {
             // 获取实验数据
-            const allData = jsPsych.data.get();
+            const allData = jsPsych.data.get().values();
             progressDiv.innerHTML = '正在处理数据...';
             
             // 过滤正式实验数据
