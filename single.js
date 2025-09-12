@@ -26,8 +26,7 @@ const jsPsych = initJsPsych({
     // 重定向由最后的"感谢画面"负责触发。
     console.log('Experiment finished. No data transmission for Study 2 baseline.');
     
-    // ========== 新添加：本地下载CSV数据 ==========
-    downloadExperimentData();
+    // 数据下载现在在感谢画面的on_finish中处理，避免重复下载
   }
 });
 jsPsych.data.addProperties({prolificPID: prolificPID});
@@ -49,31 +48,59 @@ let cheatDetected = false;
 
 // ========== 新添加：本地下载CSV数据函数 ==========
 function downloadExperimentData() {
+  console.log('开始下载实验数据...');
+  
   try {
     // 获取所有实验数据
     const allData = jsPsych.data.get();
-    console.log('All data:', allData); // 调试用
+    console.log('获取到所有数据，共', allData.length, '条记录');
     
     // 过滤掉练习数据，只保留正式实验数据
     const formalData = allData.filter(trial => !trial.is_practice);
-    console.log('Formal data:', formalData); // 调试用
+    console.log('过滤后的正式实验数据，共', formalData.length, '条记录');
     
     if (formalData.length === 0) {
-      console.warn('No formal experiment data found');
+      console.warn('没有找到正式实验数据，尝试下载所有数据');
+      // 如果没有正式数据，下载所有数据
+      const csvContent = convertToCSV(allData);
+      downloadCSV(csvContent, 'all_experiment_data.csv');
       return;
     }
     
     // 转换为CSV格式
     const csvContent = convertToCSV(formalData);
-    console.log('CSV content:', csvContent); // 调试用
+    console.log('CSV内容长度:', csvContent.length, '字符');
     
-    // 创建下载链接
+    // 执行下载
+    downloadCSV(csvContent, OUTPUT_XLSX_NAME);
+    
+  } catch (error) {
+    console.error('下载实验数据时出错:', error);
+    // 尝试备用下载方法
+    try {
+      console.log('尝试备用下载方法...');
+      const allData = jsPsych.data.get();
+      const csvContent = convertToCSV(allData);
+      downloadCSV(csvContent, 'backup_' + OUTPUT_XLSX_NAME);
+    } catch (backupError) {
+      console.error('备用下载方法也失败了:', backupError);
+      alert('数据下载失败，请检查浏览器控制台获取详细信息');
+    }
+  }
+}
+
+// ========== 新增：CSV下载辅助函数 ==========
+function downloadCSV(csvContent, filename) {
+  try {
+    // 方法1：使用Blob和URL.createObjectURL
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', OUTPUT_XLSX_NAME);
+    link.setAttribute('download', filename);
     link.style.visibility = 'hidden';
+    link.style.position = 'absolute';
+    link.style.left = '-9999px';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -81,23 +108,26 @@ function downloadExperimentData() {
     // 清理URL对象
     URL.revokeObjectURL(url);
     
-    console.log('Experiment data downloaded successfully as CSV');
+    console.log('CSV文件下载成功:', filename);
   } catch (error) {
-    console.error('Error downloading experiment data:', error);
-    // 尝试备用下载方法
+    console.error('Blob下载方法失败，尝试data URL方法:', error);
+    
+    // 方法2：使用data URL
     try {
-      const allData = jsPsych.data.get();
-      const csvContent = convertToCSV(allData);
       const dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
       const downloadAnchorNode = document.createElement('a');
       downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", OUTPUT_XLSX_NAME);
+      downloadAnchorNode.setAttribute("download", filename);
+      downloadAnchorNode.style.visibility = 'hidden';
+      downloadAnchorNode.style.position = 'absolute';
+      downloadAnchorNode.style.left = '-9999px';
       document.body.appendChild(downloadAnchorNode);
       downloadAnchorNode.click();
       downloadAnchorNode.remove();
-      console.log('Experiment data downloaded using backup method');
-    } catch (backupError) {
-      console.error('Backup download method also failed:', backupError);
+      console.log('使用data URL方法下载成功:', filename);
+    } catch (dataUrlError) {
+      console.error('data URL下载方法也失败了:', dataUrlError);
+      throw dataUrlError;
     }
   }
 }
@@ -718,9 +748,29 @@ function startExperiment() {
     trial_duration: null,
     css_classes: ['jspsych-content'],
     on_finish: function() {
-      // 未检测到作弊时才重定向
+      // 未检测到作弊时才下载数据并重定向
       if (!cheatDetected) {
-        window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+        // 显示下载提示
+        const downloadMessage = document.createElement('div');
+        downloadMessage.style.cssText = `
+          position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+          background: rgba(0,0,0,0.8); color: white; padding: 20px;
+          border-radius: 10px; font-size: 18px; z-index: 10000;
+          text-align: center; border: 2px solid #333;
+        `;
+        downloadMessage.innerHTML = '正在下载实验数据...<br><small>请稍候，即将跳转到完成页面</small>';
+        document.body.appendChild(downloadMessage);
+        
+        // 先下载数据
+        downloadExperimentData();
+        
+        // 延迟重定向，确保下载完成
+        setTimeout(() => {
+          if (downloadMessage.parentNode) {
+            downloadMessage.parentNode.removeChild(downloadMessage);
+          }
+          window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+        }, 3000); // 3秒延迟，给用户更多时间看到提示
       }
     }
   });
