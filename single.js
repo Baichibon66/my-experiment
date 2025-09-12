@@ -91,43 +91,125 @@ function downloadExperimentData() {
 
 // ========== 新增：CSV下载辅助函数 ==========
 function downloadCSV(csvContent, filename) {
+  console.log('开始下载CSV文件:', filename);
+  console.log('CSV内容长度:', csvContent.length);
+  
+  // 检测浏览器类型
+  const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+  const isFirefox = /Firefox/.test(navigator.userAgent);
+  const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+  
+  console.log('浏览器检测 - Chrome:', isChrome, 'Firefox:', isFirefox, 'Safari:', isSafari);
+  
   try {
-    // 方法1：使用Blob和URL.createObjectURL
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // 方法1：使用Blob和URL.createObjectURL（推荐方法）
+    const blob = new Blob([csvContent], { 
+      type: 'text/csv;charset=utf-8;' 
+    });
+    
+    console.log('Blob创建成功，大小:', blob.size, 'bytes');
+    
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    link.style.position = 'absolute';
-    link.style.left = '-9999px';
+    
+    // 设置链接属性
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    
+    // 添加到DOM并触发点击
     document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
     
-    // 清理URL对象
-    URL.revokeObjectURL(url);
+    // 对于Chrome，需要确保在用户交互上下文中
+    if (isChrome) {
+      // 使用更兼容的方式
+      link.click();
+    } else {
+      // 其他浏览器
+      const clickEvent = new MouseEvent('click', {
+        view: window,
+        bubbles: true,
+        cancelable: true
+      });
+      link.dispatchEvent(clickEvent);
+    }
     
-    console.log('CSV文件下载成功:', filename);
+    // 清理
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+    
+    console.log('Blob下载方法执行完成');
+    return true;
+    
   } catch (error) {
-    console.error('Blob下载方法失败，尝试data URL方法:', error);
+    console.error('Blob下载方法失败:', error);
     
-    // 方法2：使用data URL
+    // 方法2：使用data URL（备用方法）
     try {
+      console.log('尝试data URL方法...');
+      
       const dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
       const downloadAnchorNode = document.createElement('a');
-      downloadAnchorNode.setAttribute("href", dataStr);
-      downloadAnchorNode.setAttribute("download", filename);
-      downloadAnchorNode.style.visibility = 'hidden';
-      downloadAnchorNode.style.position = 'absolute';
-      downloadAnchorNode.style.left = '-9999px';
+      
+      downloadAnchorNode.href = dataStr;
+      downloadAnchorNode.download = filename;
+      downloadAnchorNode.style.display = 'none';
+      
       document.body.appendChild(downloadAnchorNode);
-      downloadAnchorNode.click();
-      downloadAnchorNode.remove();
-      console.log('使用data URL方法下载成功:', filename);
+      
+      if (isChrome) {
+        downloadAnchorNode.click();
+      } else {
+        const clickEvent = new MouseEvent('click', {
+          view: window,
+          bubbles: true,
+          cancelable: true
+        });
+        downloadAnchorNode.dispatchEvent(clickEvent);
+      }
+      
+      setTimeout(() => {
+        document.body.removeChild(downloadAnchorNode);
+      }, 100);
+      
+      console.log('data URL方法执行完成');
+      return true;
+      
     } catch (dataUrlError) {
       console.error('data URL下载方法也失败了:', dataUrlError);
-      throw dataUrlError;
+      
+      // 方法3：尝试使用window.open（最后的方法）
+      try {
+        console.log('尝试window.open方法...');
+        
+        const newWindow = window.open();
+        if (newWindow) {
+          newWindow.document.write(`
+            <html>
+              <head><title>实验数据下载</title></head>
+              <body>
+                <h2>实验数据</h2>
+                <p>请右键点击下方链接并选择"另存为"来下载数据：</p>
+                <a href="data:text/csv;charset=utf-8,${encodeURIComponent(csvContent)}" download="${filename}">
+                  点击下载 ${filename}
+                </a>
+                <br><br>
+                <button onclick="window.close()">关闭窗口</button>
+              </body>
+            </html>
+          `);
+          newWindow.document.close();
+          console.log('window.open方法执行完成');
+          return true;
+        } else {
+          throw new Error('无法打开新窗口，可能被浏览器阻止');
+        }
+      } catch (windowOpenError) {
+        console.error('window.open方法也失败了:', windowOpenError);
+        throw new Error('所有下载方法都失败了');
+      }
     }
   }
 }
@@ -750,27 +832,153 @@ function startExperiment() {
     on_finish: function() {
       // 未检测到作弊时才下载数据并重定向
       if (!cheatDetected) {
-        // 显示下载提示
+        // 显示下载提示和按钮
         const downloadMessage = document.createElement('div');
         downloadMessage.style.cssText = `
           position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-          background: rgba(0,0,0,0.8); color: white; padding: 20px;
-          border-radius: 10px; font-size: 18px; z-index: 10000;
+          background: rgba(0,0,0,0.9); color: white; padding: 30px;
+          border-radius: 15px; font-size: 18px; z-index: 10000;
           text-align: center; border: 2px solid #333;
+          min-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         `;
-        downloadMessage.innerHTML = '正在下载实验数据...<br><small>请稍候，即将跳转到完成页面</small>';
+        
+        const downloadButton = document.createElement('button');
+        downloadButton.style.cssText = `
+          background: #4CAF50; color: white; border: none; padding: 12px 24px;
+          font-size: 16px; border-radius: 6px; cursor: pointer; margin: 15px 5px;
+          transition: background 0.3s;
+        `;
+        downloadButton.textContent = '下载实验数据';
+        
+        const skipButton = document.createElement('button');
+        skipButton.style.cssText = `
+          background: #666; color: white; border: none; padding: 12px 24px;
+          font-size: 16px; border-radius: 6px; cursor: pointer; margin: 15px 5px;
+          transition: background 0.3s;
+        `;
+        skipButton.textContent = '跳过下载';
+        
+        downloadMessage.innerHTML = `
+          <div style="margin-bottom: 20px;">
+            <h3 style="margin: 0 0 10px 0; color: #4CAF50;">实验完成！</h3>
+            <p style="margin: 0; color: #ccc;">请点击下方按钮下载您的实验数据</p>
+          </div>
+        `;
+        
+        downloadMessage.appendChild(downloadButton);
+        downloadMessage.appendChild(skipButton);
         document.body.appendChild(downloadMessage);
         
-        // 先下载数据
-        downloadExperimentData();
-        
-        // 延迟重定向，确保下载完成
-        setTimeout(() => {
-          if (downloadMessage.parentNode) {
-            downloadMessage.parentNode.removeChild(downloadMessage);
+        // 下载按钮事件
+        downloadButton.addEventListener('click', function() {
+          downloadButton.textContent = '正在下载...';
+          downloadButton.disabled = true;
+          downloadButton.style.background = '#666';
+          
+          // 显示下载进度
+          const progressDiv = document.createElement('div');
+          progressDiv.style.cssText = 'margin-top: 15px; font-size: 14px; color: #ccc;';
+          progressDiv.innerHTML = '正在准备数据...';
+          downloadMessage.appendChild(progressDiv);
+          
+          try {
+            // 获取实验数据
+            const allData = jsPsych.data.get();
+            progressDiv.innerHTML = '正在处理数据...';
+            
+            // 过滤正式实验数据
+            const formalData = allData.filter(trial => !trial.is_practice);
+            progressDiv.innerHTML = `找到 ${formalData.length} 条实验数据，正在生成CSV...`;
+            
+            // 转换为CSV
+            const csvContent = convertToCSV(formalData);
+            progressDiv.innerHTML = '正在下载文件...';
+            
+            // 执行下载
+            const downloadSuccess = downloadCSV(csvContent, OUTPUT_XLSX_NAME);
+            
+            if (downloadSuccess) {
+              progressDiv.innerHTML = '下载成功！';
+              progressDiv.style.color = '#4CAF50';
+              
+              setTimeout(() => {
+                downloadMessage.innerHTML = `
+                  <div style="text-align: center; color: #4CAF50;">
+                    <h3>✓ 下载完成！</h3>
+                    <p>文件已保存到您的下载文件夹</p>
+                    <p style="font-size: 14px; color: #ccc; margin-top: 10px;">即将跳转到完成页面...</p>
+                  </div>
+                `;
+                setTimeout(() => {
+                  window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+                }, 2000);
+              }, 1000);
+            } else {
+              throw new Error('下载函数返回失败');
+            }
+            
+          } catch (error) {
+            console.error('下载过程中出错:', error);
+            progressDiv.innerHTML = '下载失败';
+            progressDiv.style.color = '#ff6b6b';
+            
+            // 显示详细错误信息
+            const errorDetails = document.createElement('div');
+            errorDetails.style.cssText = 'margin-top: 10px; font-size: 12px; color: #ff6b6b; background: rgba(255,107,107,0.1); padding: 10px; border-radius: 5px;';
+            errorDetails.innerHTML = `
+              <strong>错误详情：</strong><br>
+              ${error.message || '未知错误'}<br><br>
+              <strong>解决方案：</strong><br>
+              1. 检查浏览器是否允许下载文件<br>
+              2. 尝试关闭弹窗阻止程序<br>
+              3. 检查下载文件夹权限<br>
+              4. 如果问题持续，请联系实验管理员
+            `;
+            downloadMessage.appendChild(errorDetails);
+            
+            // 添加重试按钮
+            const retryButton = document.createElement('button');
+            retryButton.textContent = '重试下载';
+            retryButton.style.cssText = `
+              background: #ff6b6b; color: white; border: none; padding: 8px 16px;
+              font-size: 14px; border-radius: 4px; cursor: pointer; margin: 10px 5px;
+            `;
+            retryButton.addEventListener('click', () => {
+              downloadMessage.innerHTML = `
+                <div style="margin-bottom: 20px;">
+                  <h3 style="margin: 0 0 10px 0; color: #4CAF50;">实验完成！</h3>
+                  <p style="margin: 0; color: #ccc;">请点击下方按钮下载您的实验数据</p>
+                </div>
+              `;
+              downloadMessage.appendChild(downloadButton);
+              downloadMessage.appendChild(skipButton);
+            });
+            downloadMessage.appendChild(retryButton);
+            
+            // 添加跳过按钮
+            const skipButton2 = document.createElement('button');
+            skipButton2.textContent = '跳过下载';
+            skipButton2.style.cssText = `
+              background: #666; color: white; border: none; padding: 8px 16px;
+              font-size: 14px; border-radius: 4px; cursor: pointer; margin: 10px 5px;
+            `;
+            skipButton2.addEventListener('click', () => {
+              window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+            });
+            downloadMessage.appendChild(skipButton2);
           }
+        });
+        
+        // 跳过按钮事件
+        skipButton.addEventListener('click', function() {
           window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
-        }, 3000); // 3秒延迟，给用户更多时间看到提示
+        });
+        
+        // 按钮悬停效果
+        downloadButton.addEventListener('mouseenter', () => downloadButton.style.background = '#45a049');
+        downloadButton.addEventListener('mouseleave', () => downloadButton.style.background = '#4CAF50');
+        skipButton.addEventListener('mouseenter', () => skipButton.style.background = '#555');
+        skipButton.addEventListener('mouseleave', () => skipButton.style.background = '#666');
       }
     }
   });
