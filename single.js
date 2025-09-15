@@ -374,10 +374,10 @@ function startExperiment() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>こちらは練習のセクションです。</p>
-        <p>練習に入る前に、必ず本研究のProlificページに記載された説明をよくお読みください。</p>
-        <p>このセクションを通じて、実験の流れに慣れてください。</p>
-        <p>スペースキーを押して練習を開始してください。</p>
+        <p>练习环节</p>
+        <p>进入练习前，请你先阅读规则的word文档，之后</p>
+        <p>请你通过练习阶段熟悉游戏流程。</p>
+        <p>按空格开始练习p>
         <!-- TODO: 在这里添加具体的练习指导语 -->
       </div>
     `,
@@ -394,11 +394,11 @@ function startExperiment() {
           <div style='display: flex; justify-content: space-around; width: 600px; margin-bottom: 40px;'>
             <div>
               <img src='${IMAGE_PATH}1.png' style='height: 120px; margin-bottom: 20px;'>
-              <div style='font-size: 24px; color: white;'>图片1</div>
+              <div style='font-size: 24px; color: white;'>图片1 集中型</div>
             </div>
             <div>
               <img src='${IMAGE_PATH}2.png' style='height: 120px; margin-bottom: 20px;'>
-              <div style='font-size: 24px; color: white;'>图片2</div>
+              <div style='font-size: 24px; color: white;'>图片2 分散型</div>
             </div>
           </div>
           <div style='font-size: 20px; color: #ffd966; margin-top: 40px;'>
@@ -444,9 +444,9 @@ function startExperiment() {
       type: jsPsychHtmlKeyboardResponse,
       stimulus: `
         <div style='font-size: 48px; text-align: center;'>
-          <p>どちらに賭けますか？</p>
+          <p>你选择哪个</p>
           <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
-          <div id='practice-choice-hint' style='display:none; font-size: 22px; margin-top: 24px; color: #ffd966;'>今、選択してください。</div>
+          <div id='practice-choice-hint' style='display:none; font-size: 22px; margin-top: 24px; color: #ffd966;'>现在请你进行选择。</div>
         </div>
       `,
       choices: "NO_KEYS", // 初始设置为不接受按键
@@ -556,7 +556,7 @@ function startExperiment() {
       stimulus: function() {
       return`
         <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center;'>
-          <div style='font-size: 48px;'>あなた</div>
+          <div style='font-size: 48px;'>你</div>
           <div style='height: 100px;'></div>
           <div style='font-size: 48px;'>${practiceScore}</div> <!-- 修改：显示练习分数 -->
         </div>
@@ -574,7 +574,7 @@ function startExperiment() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>練習が終了しました。スペースキーを押して正式実験に進んでください。</p>
+        <p>练习结束按空格进行正式游戏。</p>
         <!-- 这里可以后续自由编辑内容 -->
       </div>
     `,
@@ -614,8 +614,11 @@ function startExperiment() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>ここに「提案／アドバイス」用のテキストを表示します（後で確定）。</p>
-        <p style='font-size: 20px; margin-top: 40px;'>スペースキーで次へ進みます。</p>
+        <p>此处为建议环节。</p>
+        <p>来自学习过上次游戏的结果数据的AI的建议：建议选择集中型线索。</p>
+        <p>理由：集中型在上次游戏中，共中奖10500回，而分散型仅中奖4500回，因此，建议选择集中型的图片。
+另外，在集中型出现在屏幕上方的情况中，中奖次数为5258回（分散型在上方的中奖次数为5258次），在集中型出现在屏幕下方的情况中、也有5242回中奖（分散型在这种情况下，中奖次数为5242回），根据以上数据，我认为无论集中型出现在屏幕中的哪里，都比分散型更容易中奖。</p>
+        <p style='font-size: 20px; margin-top: 40px;'>按空格继续。</p>
       </div>
     `,
     choices: [' '],
@@ -639,7 +642,7 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < 5; i++) {          //修改試行数
+  for (let i = 0; i < 120; i++) {          //修改試行数
     const trial = trials[i % trials.length];
     // ====== 被験者試行 ======
     // 画面3：刺激画面
