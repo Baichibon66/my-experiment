@@ -6,8 +6,64 @@ function getProlificPID() {
 const prolificPID = getProlificPID();
 // Debug 开关：URL 加 ?debug=1 时启用
 const DEBUG_MODE = new URLSearchParams(window.location.search).get('debug') === '1';
+// 模拟上传失败开关：URL 加 ?simulate_upload_fail=1 时启用
+const SIMULATE_UPLOAD_FAIL = new URLSearchParams(window.location.search).get('simulate_upload_fail') === '1';
 if (DEBUG_MODE) {
   console.warn('[DEBUG] 调试模式已启用：反作弊将被禁用，错误将显示在页面覆盖层');
+}
+if (SIMULATE_UPLOAD_FAIL) {
+  console.warn('[DEBUG] 模拟上传失败模式已启用：将强制触发上传失败以测试本地下载功能');
+}
+
+// ========== 调试控制面板 ==========
+if (DEBUG_MODE || SIMULATE_UPLOAD_FAIL) {
+  // 创建调试控制面板
+  const debugPanel = document.createElement('div');
+  debugPanel.id = 'debug-panel';
+  debugPanel.style.cssText = `
+    position: fixed; top: 10px; right: 10px; z-index: 10000;
+    background: rgba(0,0,0,0.8); color: white; padding: 15px;
+    border-radius: 8px; font-family: monospace; font-size: 12px;
+    border: 2px solid #333; min-width: 200px;
+  `;
+  
+  debugPanel.innerHTML = `
+    <div style="margin-bottom: 10px; font-weight: bold; color: #4CAF50;">调试控制面板</div>
+    <button id="trigger-upload-fail" style="
+      background: #ff6b6b; color: white; border: none; padding: 8px 12px;
+      border-radius: 4px; cursor: pointer; margin: 2px; font-size: 11px;
+    ">模拟上传失败</button>
+    <button id="test-download" style="
+      background: #4CAF50; color: white; border: none; padding: 8px 12px;
+      border-radius: 4px; cursor: pointer; margin: 2px; font-size: 11px;
+    ">测试本地下载</button>
+    <div style="margin-top: 10px; font-size: 10px; color: #ccc;">
+      状态: <span id="debug-status">就绪</span>
+    </div>
+  `;
+  
+  document.body.appendChild(debugPanel);
+  
+  // 添加事件监听器
+  document.getElementById('trigger-upload-fail').addEventListener('click', function() {
+    document.getElementById('debug-status').textContent = '已触发上传失败';
+    document.getElementById('debug-status').style.color = '#ff6b6b';
+    // 这里可以触发一个全局标志，让上传函数检测到并失败
+    window.DEBUG_FORCE_UPLOAD_FAIL = true;
+  });
+  
+  document.getElementById('test-download').addEventListener('click', function() {
+    document.getElementById('debug-status').textContent = '正在测试下载...';
+    document.getElementById('debug-status').style.color = '#ffa500';
+    try {
+      downloadExperimentData();
+      document.getElementById('debug-status').textContent = '下载测试成功';
+      document.getElementById('debug-status').style.color = '#4CAF50';
+    } catch (error) {
+      document.getElementById('debug-status').textContent = '下载测试失败: ' + error.message;
+      document.getElementById('debug-status').style.color = '#ff6b6b';
+    }
+  });
 }
 console.log('Prolific ID:', prolificPID);
 
@@ -15,7 +71,7 @@ const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?c
 
 // ========== 数据上传服务器設定 ==========
 // 参照single.js的服务器路径设置
-const FILE_UPLOAD_URL = 'https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/winner/save_data.php';
+const FILE_UPLOAD_URL = 'https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/ai/save_data.php';
 
 // ========== 1. パス設定 ==========
 const IMAGE_PATH = "formalimages/"; // images folder
@@ -42,12 +98,6 @@ jsPsych.data.addProperties({experimentStartTime: experimentStartTime});
 const globalStyle = `
   body { background-color: black !important; color: white !important; }
   .jspsych-content { color: white !important; }
-  .jspsych-survey-likert { background-color: black !important; color: white !important; }
-  .jspsych-survey-likert .jspsych-survey-likert-question { color: white !important; }
-  .jspsych-survey-likert .jspsych-survey-likert-option { color: white !important; }
-  .jspsych-survey-likert input[type="radio"] { background-color: white !important; }
-  .jspsych-survey-likert label { color: white !important; }
-  .white { color: white !important; }
 `;
 const style = document.createElement('style');
 style.innerHTML = globalStyle;
@@ -102,15 +152,9 @@ function downloadExperimentData() {
     const allData = jsPsych.data.get().values();
     console.log('获取到所有数据，共', allData.length, '条记录');
     
-    // 过滤掉练习数据，保留正式实验数据和问卷数据
-    const formalData = allData.filter(trial => 
-      !trial.is_practice || 
-      trial.trial_type === 'survey-likert' || 
-      trial.trial_type === 'survey-text' || 
-      trial.trial_type === 'survey-multi-choice' || 
-      trial.trial_type === 'survey-multi-select'
-    );
-    console.log('过滤后的正式实验数据和问卷数据，共', formalData.length, '条记录');
+    // 过滤掉练习数据，只保留正式实验数据
+    const formalData = allData.filter(trial => !trial.is_practice);
+    console.log('过滤后的正式实验数据，共', formalData.length, '条记录');
     
     if (formalData.length === 0) {
       console.warn('没有找到正式实验数据，尝试下载所有数据');
@@ -137,7 +181,7 @@ function downloadExperimentData() {
       downloadCSV(csvContent, 'backup_' + OUTPUT_XLSX_NAME);
     } catch (backupError) {
       console.error('备用下载方法也失败了:', backupError);
-      alert('データのダウンロードに失敗しました。ブラウザのコンソールで詳細を確認してください。');
+      alert('数据下载失败，请检查浏览器控制台获取详细信息');
     }
   }
 }
@@ -241,15 +285,15 @@ function downloadCSV(csvContent, filename) {
         if (newWindow) {
           newWindow.document.write(`
             <html>
-              <head><title>実験データダウンロード</title></head>
+              <head><title>实验数据下载</title></head>
               <body>
-                <h2>実験データ</h2>
-                <p>下のリンクを右クリックして「名前を付けて保存」を選択してデータをダウンロードしてください：</p>
+                <h2>实验数据</h2>
+                <p>请右键点击下方链接并选择"另存为"来下载数据：</p>
                 <a href="data:text/csv;charset=utf-8,${encodeURIComponent(csvContent)}" download="${filename}">
-                  ${filename}をダウンロード
+                  点击下载 ${filename}
                 </a>
                 <br><br>
-                <button onclick="window.close()">ウィンドウを閉じる</button>
+                <button onclick="window.close()">关闭窗口</button>
               </body>
             </html>
           `);
@@ -282,13 +326,13 @@ function convertToCSV(data) {
       isCheat: cheatInfo.isCheat,
       cheatTrial: cheatInfo.cheatTrial,
       cheatMethod: cheatInfo.cheatMethod,
-      experimentCondition: 'Winner'
+      experimentCondition: 'AI'
     };
     
     // 如果是Likert问卷数据，添加特殊标记
     if (row.trial_type === 'survey-likert') {
-      enhanced.survey_type = 'winner_advice_trust_rating';
-      enhanced.survey_question = '上述胜利者建议的可信度评价';
+      enhanced.survey_type = 'ai_advice_trust_rating';
+      enhanced.survey_question = '上述AI建议的可信度评价';
       enhanced.survey_response = row.response ? row.response.Q0 : null;
       enhanced.survey_scale = '7-point Likert (1=完全不可信, 7=完全可信)';
     }
@@ -365,6 +409,14 @@ function uploadExperimentDataToServer() {
 function uploadDataToServer(data, dataType) {
   return new Promise((resolve, reject) => {
     try {
+      // 模拟上传失败（用于测试本地下载功能）
+      if (SIMULATE_UPLOAD_FAIL || window.DEBUG_FORCE_UPLOAD_FAIL) {
+        console.warn('[DEBUG] 模拟上传失败：将触发上传失败以测试本地下载功能');
+        setTimeout(() => {
+          reject(new Error('模拟上传失败：网络连接超时'));
+        }, 2000); // 2秒后模拟失败
+        return;
+      }
       // 为每条数据添加作弊信息和实验条件
       const enhancedData = data.map(row => {
         return {
@@ -372,7 +424,7 @@ function uploadDataToServer(data, dataType) {
           isCheat: cheatInfo.isCheat,
           cheatTrial: cheatInfo.cheatTrial,
           cheatMethod: cheatInfo.cheatMethod,
-          experimentCondition: 'Winner'
+          experimentCondition: 'AI'
         };
       });
       
@@ -385,10 +437,10 @@ function uploadDataToServer(data, dataType) {
       form.set('timestamp', new Date().toISOString());
       form.set('user_agent', navigator.userAgent);
       form.set('total_trials', String(enhancedData.length));
-      form.set('experiment_version', 'study2_winner_condition');
+      form.set('experiment_version', 'study2_ai_condition');
       form.set('browser_language', navigator.language || '');
       form.set('browser_platform', navigator.platform || '');
-      form.set('suggested_file_name', `winner_${prolificPID || 'NO_PID'}_${Date.now()}.json`);
+      form.set('suggested_file_name', `ai_${prolificPID || 'NO_PID'}_${Date.now()}.json`);
       
       // 添加作弊信息到表单
       form.set('is_cheat', String(cheatInfo.isCheat));
@@ -396,7 +448,7 @@ function uploadDataToServer(data, dataType) {
       form.set('cheat_method', String(cheatInfo.cheatMethod || ''));
       
       // 添加实验条件标识
-      form.set('experiment_condition', 'Winner');
+      form.set('experiment_condition', 'AI');
 
       console.log('准备上传数据到:', FILE_UPLOAD_URL);
       console.log('数据条数:', enhancedData.length);
@@ -610,27 +662,18 @@ function startExperiment() {
       tasks.push(loadScript('https://unpkg.com/jspsych@7.3.3/dist/jspsych.js'));
     }
     return Promise.all(tasks).then(() => {
-      const pluginTasks = [];
       if (typeof window.jsPsychHtmlKeyboardResponse === 'undefined') {
-        pluginTasks.push(loadScript('https://unpkg.com/jspsych@7.3.3/dist/plugin-html-keyboard-response.js'));
+        return loadScript('https://unpkg.com/jspsych@7.3.3/dist/plugin-html-keyboard-response.js');
       }
-      if (typeof window.jsPsychSurveyLikert === 'undefined') {
-        pluginTasks.push(loadScript('https://unpkg.com/jspsych@7.3.3/dist/plugin-survey-likert.js'));
-      }
-      return Promise.all(pluginTasks);
     });
   }
 
   // 若插件尚未可用，则先加载再重入本函数
-  if (typeof window.jsPsychHtmlKeyboardResponse === 'undefined' || typeof window.jsPsychSurveyLikert === 'undefined') {
+  if (typeof window.jsPsychHtmlKeyboardResponse === 'undefined') {
     ensureJsPsychReady()
       .then(() => {
         if (typeof window.jsPsychHtmlKeyboardResponse === 'undefined') {
           showError('jsPsych 插件仍不可用', 'jsPsychHtmlKeyboardResponse 未加载');
-          return;
-        }
-        if (typeof window.jsPsychSurveyLikert === 'undefined') {
-          showError('jsPsych 插件仍不可用', 'jsPsychSurveyLikert 未加载');
           return;
         }
         startExperiment();
@@ -645,10 +688,10 @@ function startExperiment() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>こちらは練習のセクションです。</p>
-        <p>練習に入る前に、必ず本研究のProlificページに記載された説明をよくお読みください。</p>
-        <p>このセクションを通じて、実験の流れに慣れてください。</p>
-        <p>スペースキーを押して練習を開始してください。</p>
+        <p>こちらは練習のセクションです。（练习环节）</p>
+        <p>練習に入る前に、必ず本研究のProlificページに記載された説明をよくお読みください。（不重要）</p>
+        <p>このセクションを通じて、実験の流れに慣れてください。（流程为提示线索图片的位置，做出选择，提示中奖的图片，提示当前得分）</p>
+        <p>スペースキーを押して練習を開始してください。（按空格开始练习）</p>
         <!-- TODO: 在这里添加具体的练习指导语 -->
       </div>
     `,
@@ -673,7 +716,7 @@ function startExperiment() {
             </div>
           </div>
           <div style='font-size: 20px; color: #ffd966; margin-top: 40px;'>
-            スペースキーを押して進んでください。
+            按空格键切换至下一界面
           </div>
         </div>
       </div>
@@ -721,7 +764,7 @@ function startExperiment() {
       type: jsPsychHtmlKeyboardResponse,
       stimulus: `
         <div style='font-size: 48px; text-align: center;'>
-          <p>どちらに賭けますか？</p>
+          <p>どちらに賭けますか？（你打算选哪个？）</p>
           <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
           <div id='practice-choice-hint' style='display:none; font-size: 22px; margin-top: 24px; color: #ffd966;'>今、選択してください。（现在请你做出选择）</div>
         </div>
@@ -857,7 +900,7 @@ function startExperiment() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>練習が終了しました。スペースキーを押して正式実験に進んでください。</p>
+        <p>練習が終了しました。スペースキーを押して正式実験に進んでください。（练习结束，按空格开始正式实验）</p>
         <!-- 这里可以后续自由编辑内容 -->
       </div>
     `,
@@ -897,10 +940,10 @@ function startExperiment() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>13131</p>
+        <p>来自学习过上次游戏的结果数据的AI的建议：建议选择集中型线索。根据上次实验的数据，集中型中奖的概率远高于分散型。下列日语，大家根据汉字部分可以大体明白内容。大致列举出具体数据告知给为集中型线索中奖的概率远高于分散型。</p>
         <p>理由：選択肢1（集中型）が全体で10500回勝っているのに対し、選択肢2（分散型）は4500回しか勝っていないため、選択肢1が正しい選択肢となる確率が高いことがわかります。
 さらに、選択肢1が上部に表示された場合は、5258回勝つことが多く、選択肢1が下部に表示された場合は、5242回勝っていることから、選択肢1は上部に表示された際に特に有利だと考えられます。一方で、選択肢2は上部に表示された場合は2242回、下部に表示された場合は2258回しか勝っていません。したがって、選択肢1を選ぶことが最も有利であると考えます。</p>
-        <p style='font-size: 20px; margin-top: 40px;'>スペースキーで次へ進みます。</p>
+        <p style='font-size: 20px; margin-top: 40px;'>スペースキーで次へ進みます。（按空格开始实验）</p>
       </div>
     `,
     choices: [' '],
@@ -1117,14 +1160,13 @@ function startExperiment() {
     });
   }
 
-  // ========== 画面7：感谢画面 ==========
+  // ========== 画面7：終了語 ==========
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: function() {
     return`
       <div style='font-size: 28px; text-align: center;'>
-        <p>お疲れ様でした！</p>
-        <p>ご参加いただきありがとうございました！スペースキーを押して進んでください。</p>
+        <p>お疲れ様でした！スペースキーを押して終了します。（按空格结束实验）</p>
         <p style='font-size: 24px; margin-top: 40px;'>Total Score：${totalScore}pt</p>
       </div>
     `;
@@ -1132,10 +1174,22 @@ function startExperiment() {
     choices: [' '],
     trial_duration: null,
     css_classes: ['jspsych-content'],
+  });
+  // ========== 画面8：感谢画面 ==========
+  timeline.push({
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `
+      <div style='font-size: 28px; text-align: center;'>
+        <p>ご参加いただきありがとうございました！スペースキーを押して報酬の決済に進んでください。（按空格开始报酬结算）</p>
+      </div>
+    `,
+    choices: [' '],
+    trial_duration: null,
+    css_classes: ['jspsych-content'],
     on_finish: function() {
       // 未检测到作弊时才上传数据并重定向
       if (!cheatDetected) {
-        // 显示上传提示
+        // 显示上传提示和按钮
         const uploadMessage = document.createElement('div');
         uploadMessage.style.cssText = `
           position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -1145,83 +1199,138 @@ function startExperiment() {
           min-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         `;
         
+        const uploadButton = document.createElement('button');
+        uploadButton.style.cssText = `
+          background: #4CAF50; color: white; border: none; padding: 12px 24px;
+          font-size: 16px; border-radius: 6px; cursor: pointer; margin: 15px 5px;
+          transition: background 0.3s;
+        `;
+        uploadButton.textContent = '上传实验数据';
+        
+        const skipButton = document.createElement('button');
+        skipButton.style.cssText = `
+          background: #666; color: white; border: none; padding: 12px 24px;
+          font-size: 16px; border-radius: 6px; cursor: pointer; margin: 15px 5px;
+          transition: background 0.3s;
+        `;
+        skipButton.textContent = '跳过上传';
+        
         uploadMessage.innerHTML = `
           <div style="margin-bottom: 20px;">
-            <h3 style="margin: 0 0 10px 0; color: #4CAF50;">実験完了！</h3>
-            <p style="margin: 0; color: #ccc;">実験データをサーバーにアップロードしています...</p>
+            <h3 style="margin: 0 0 10px 0; color: #4CAF50;">实验完成！</h3>
+            <p style="margin: 0; color: #ccc;">请点击下方按钮上传您的实验数据到服务器</p>
           </div>
         `;
         
-        // 显示上传进度
-        const progressDiv = document.createElement('div');
-        progressDiv.style.cssText = 'margin-top: 15px; font-size: 14px; color: #ccc;';
-        progressDiv.innerHTML = 'データを準備中...';
-        uploadMessage.appendChild(progressDiv);
-        
+        uploadMessage.appendChild(uploadButton);
+        uploadMessage.appendChild(skipButton);
         document.body.appendChild(uploadMessage);
         
-        // 自动执行数据上传
-        uploadExperimentDataToServer()
-          .then(result => {
-            progressDiv.innerHTML = 'データのアップロードが成功しました！';
-            progressDiv.style.color = '#4CAF50';
-            
-            setTimeout(() => {
-              uploadMessage.innerHTML = `
-                <div style="text-align: center; color: #4CAF50;">
-                  <h3>✓ アップロード完了！</h3>
-                  <p>データがサーバーに正常に保存されました</p>
-                  <p style="font-size: 14px; color: #ccc; margin-top: 10px;">完了ページに移動しています...</p>
-                </div>
-              `;
+        // 上传按钮事件
+        uploadButton.addEventListener('click', function() {
+          uploadButton.textContent = '正在上传...';
+          uploadButton.disabled = true;
+          uploadButton.style.background = '#666';
+          
+          // 显示上传进度
+          const progressDiv = document.createElement('div');
+          progressDiv.style.cssText = 'margin-top: 15px; font-size: 14px; color: #ccc;';
+          progressDiv.innerHTML = '正在准备数据...';
+          uploadMessage.appendChild(progressDiv);
+          
+          // 执行数据上传
+          uploadExperimentDataToServer()
+            .then(result => {
+              progressDiv.innerHTML = '数据上传成功！';
+              progressDiv.style.color = '#4CAF50';
+              
               setTimeout(() => {
+                uploadMessage.innerHTML = `
+                  <div style="text-align: center; color: #4CAF50;">
+                    <h3>✓ 上传完成！</h3>
+                    <p>数据已成功保存到服务器</p>
+                    <p style="font-size: 14px; color: #ccc; margin-top: 10px;">即将跳转到完成页面...</p>
+                  </div>
+                `;
+                setTimeout(() => {
+                  window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+                }, 2000);
+              }, 1000);
+            })
+            .catch(error => {
+              console.error('上传过程中出错:', error);
+              progressDiv.innerHTML = '上传失败，正在尝试本地下载...';
+              progressDiv.style.color = '#ff6b6b';
+              
+              // 尝试本地下载
+              try {
+                downloadExperimentData();
+                progressDiv.innerHTML = '上传失败，但数据已自动下载到本地';
+                progressDiv.style.color = '#ffa500';
+              } catch (downloadError) {
+                console.error('本地下载也失败了:', downloadError);
+                progressDiv.innerHTML = '上传和本地下载都失败了';
+                progressDiv.style.color = '#ff6b6b';
+              }
+              
+              // 显示详细错误信息
+              const errorDetails = document.createElement('div');
+              errorDetails.style.cssText = 'margin-top: 10px; font-size: 12px; color: #ff6b6b; background: rgba(255,107,107,0.1); padding: 10px; border-radius: 5px;';
+              errorDetails.innerHTML = `
+                <strong>错误详情：</strong><br>
+                ${error.message || '未知错误'}<br><br>
+                <strong>解决方案：</strong><br>
+                1. 检查网络连接是否正常<br>
+                2. 尝试刷新页面重新上传<br>
+                3. 如果问题持续，请联系实验管理员<br>
+                4. 数据已自动下载到本地，请发送给研究者<br>
+                5. 您也可以选择跳过上传直接完成实验
+              `;
+              uploadMessage.appendChild(errorDetails);
+              
+              // 添加重试按钮
+              const retryButton = document.createElement('button');
+              retryButton.textContent = '重试上传';
+              retryButton.style.cssText = `
+                background: #ff6b6b; color: white; border: none; padding: 8px 16px;
+                font-size: 14px; border-radius: 4px; cursor: pointer; margin: 10px 5px;
+              `;
+              retryButton.addEventListener('click', () => {
+                uploadMessage.innerHTML = `
+                  <div style="margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 10px 0; color: #4CAF50;">实验完成！</h3>
+                    <p style="margin: 0; color: #ccc;">请点击下方按钮上传您的实验数据到服务器</p>
+                  </div>
+                `;
+                uploadMessage.appendChild(uploadButton);
+                uploadMessage.appendChild(skipButton);
+              });
+              uploadMessage.appendChild(retryButton);
+              
+              // 添加跳过按钮
+              const skipButton2 = document.createElement('button');
+              skipButton2.textContent = '跳过上传';
+              skipButton2.style.cssText = `
+                background: #666; color: white; border: none; padding: 8px 16px;
+                font-size: 14px; border-radius: 4px; cursor: pointer; margin: 10px 5px;
+              `;
+              skipButton2.addEventListener('click', () => {
                 window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
-              }, 2000);
-            }, 1000);
-          })
-          .catch(error => {
-            console.error('アップロード中にエラーが発生しました:', error);
-            progressDiv.innerHTML = 'アップロードに失敗しました';
-            progressDiv.style.color = '#ff6b6b';
-            
-            // 本地下载数据
-            try {
-              downloadExperimentData();
-            } catch (downloadError) {
-              console.error('データのダウンロードにも失敗しました:', downloadError);
-            }
-            
-            // 显示错误信息和解决方案
-            const errorDetails = document.createElement('div');
-            errorDetails.style.cssText = 'margin-top: 10px; font-size: 12px; color: #ff6b6b; background: rgba(255,107,107,0.1); padding: 10px; border-radius: 5px;';
-            errorDetails.innerHTML = `
-              <strong>エラー詳細：</strong><br>
-              ${error.message || '不明なエラー'}<br><br>
-              <strong>解決方法：</strong><br>
-              1. ネットワーク接続を確認してください<br>
-              2. ページを更新して再試行してください<br>
-              3. 問題が続く場合は、実験管理者に連絡してください<br>
-              4. データは自動的にダウンロードされました。研究者に送信してください
-            `;
-            uploadMessage.appendChild(errorDetails);
-            
-            // 添加继续按钮
-            const continueButton = document.createElement('button');
-            continueButton.textContent = '続行';
-            continueButton.style.cssText = `
-              background: #4CAF50; color: white; border: none; padding: 12px 24px;
-              font-size: 16px; border-radius: 6px; cursor: pointer; margin: 15px 5px;
-              transition: background 0.3s;
-            `;
-            continueButton.addEventListener('click', () => {
-              window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+              });
+              uploadMessage.appendChild(skipButton2);
             });
-            uploadMessage.appendChild(continueButton);
-            
-            // 按钮悬停效果
-            continueButton.addEventListener('mouseenter', () => continueButton.style.background = '#45a049');
-            continueButton.addEventListener('mouseleave', () => continueButton.style.background = '#4CAF50');
-          });
+        });
+        
+        // 跳过按钮事件
+        skipButton.addEventListener('click', function() {
+          window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+        });
+        
+        // 按钮悬停效果
+        uploadButton.addEventListener('mouseenter', () => uploadButton.style.background = '#45a049');
+        uploadButton.addEventListener('mouseleave', () => uploadButton.style.background = '#4CAF50');
+        skipButton.addEventListener('mouseenter', () => skipButton.style.background = '#555');
+        skipButton.addEventListener('mouseleave', () => skipButton.style.background = '#666');
       }
     }
   });
