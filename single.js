@@ -4,19 +4,23 @@ function getProlificPID() {
   return urlParams.get('PROLIFIC_PID') || 'NO_PID';
 }
 const prolificPID = getProlificPID();
+// Debug 开关：URL 加 ?debug=1 时启用
+const DEBUG_MODE = new URLSearchParams(window.location.search).get('debug') === '1';
+if (DEBUG_MODE) {
+  console.warn('[DEBUG] 调试模式已启用：反作弊将被禁用，错误将显示在页面覆盖层');
+}
 console.log('Prolific ID:', prolificPID);
 
 const PROLIFIC_COMPLETION_URL = "https://app.prolific.com/submissions/complete?cc=CZEQN2PE"; // Completion Code
 
-// ========== さくら（sakura）サーバ設定 ==========
-// TODO: 将下方占位URL替换为实际さくら服务器端点
-// const SAKURA_SERVER_URL = "https://sakura-server.example.com/single/";
-// const CHEAT_REPORT_URL = SAKURA_SERVER_URL + "cheat_report.php";
+// ========== 数据上传服务器設定 ==========
+// 参照single.js的服务器路径设置
+const FILE_UPLOAD_URL = 'https://www.psycho.hes.kyushu-u.ac.jp/~baichibon/winner/save_data.php';
 
 // ========== 1. パス設定 ==========
 const IMAGE_PATH = "formalimages/"; // images folder
 const TRIALS_XLSX_PATH = "experiment_data/formal_trials.csv"; // pseudorandom 試行表（順、手がかりの図、桜について）
-const OUTPUT_XLSX_NAME = "single_choice_data.csv"; // データ輸出
+const OUTPUT_XLSX_NAME = "ai_choice_data.csv"; // AI条件数据输出
 const PRACTICE_TRIALS_XLSX_PATH = "experiment_data/practice_trials.csv";
 
 // ========== 2. jsPsych全体設定 ==========
@@ -38,15 +42,58 @@ jsPsych.data.addProperties({experimentStartTime: experimentStartTime});
 const globalStyle = `
   body { background-color: black !important; color: white !important; }
   .jspsych-content { color: white !important; }
+  .jspsych-survey-likert { background-color: black !important; color: white !important; }
+  .jspsych-survey-likert .jspsych-survey-likert-question { color: white !important; }
+  .jspsych-survey-likert .jspsych-survey-likert-option { color: white !important; }
+  .jspsych-survey-likert input[type="radio"] { background-color: white !important; }
+  .jspsych-survey-likert label { color: white !important; }
+  .white { color: white !important; }
 `;
 const style = document.createElement('style');
 style.innerHTML = globalStyle;
 document.head.appendChild(style);
 
+// ========== 调试：错误覆盖层 ==========
+function ensureErrorOverlay() {
+  let overlay = document.getElementById('error-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'error-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);color:#ff6b6b;z-index:2147483647;padding:20px;overflow:auto;display:none;font-family:monospace;';
+    document.body.appendChild(overlay);
+  }
+  return overlay;
+}
+
+function showError(message, detail) {
+  if (!DEBUG_MODE) return;
+  const overlay = ensureErrorOverlay();
+  overlay.style.display = 'block';
+  const now = new Date().toLocaleTimeString();
+  const pre = document.createElement('pre');
+  pre.style.whiteSpace = 'pre-wrap';
+  pre.style.wordBreak = 'break-word';
+  pre.textContent = `[${now}] ${message}\n${detail || ''}`;
+  overlay.appendChild(pre);
+}
+
+window.addEventListener('error', function(e){
+  showError('Uncaught Error: ' + (e.message || ''), (e.filename||'') + ':' + (e.lineno||'') + ':' + (e.colno||''));
+});
+window.addEventListener('unhandledrejection', function(e){
+  const reason = e.reason && (e.reason.stack || e.reason.message) ? (e.reason.stack || e.reason.message) : String(e.reason);
+  showError('Unhandled Promise Rejection', reason);
+});
+
 // ========== 防作弊机制 ==========
 let cheatDetected = false;
+let cheatInfo = {
+  isCheat: 1, // 1为未作弊，2为作弊
+  cheatTrial: null, // 作弊发生的试次号
+  cheatMethod: null // 作弊方式
+};
 
-// ========== 新添加：本地下载CSV数据函数 ==========
+// ========== 本地下载CSV数据函数（用于上传失败时的备用方案） ==========
 function downloadExperimentData() {
   console.log('开始下载实验数据...');
   
@@ -55,9 +102,15 @@ function downloadExperimentData() {
     const allData = jsPsych.data.get().values();
     console.log('获取到所有数据，共', allData.length, '条记录');
     
-    // 过滤掉练习数据，只保留正式实验数据
-    const formalData = allData.filter(trial => !trial.is_practice);
-    console.log('过滤后的正式实验数据，共', formalData.length, '条记录');
+    // 过滤掉练习数据，保留正式实验数据和问卷数据
+    const formalData = allData.filter(trial => 
+      !trial.is_practice || 
+      trial.trial_type === 'survey-likert' || 
+      trial.trial_type === 'survey-text' || 
+      trial.trial_type === 'survey-multi-choice' || 
+      trial.trial_type === 'survey-multi-select'
+    );
+    console.log('过滤后的正式实验数据和问卷数据，共', formalData.length, '条记录');
     
     if (formalData.length === 0) {
       console.warn('没有找到正式实验数据，尝试下载所有数据');
@@ -84,12 +137,12 @@ function downloadExperimentData() {
       downloadCSV(csvContent, 'backup_' + OUTPUT_XLSX_NAME);
     } catch (backupError) {
       console.error('备用下载方法也失败了:', backupError);
-      alert('数据下载失败，请检查浏览器控制台获取详细信息');
+      alert('データのダウンロードに失敗しました。ブラウザのコンソールで詳細を確認してください。');
     }
   }
 }
 
-// ========== 新增：CSV下载辅助函数 ==========
+// ========== CSV下载辅助函数（用于上传失败时的备用方案） ==========
 function downloadCSV(csvContent, filename) {
   console.log('开始下载CSV文件:', filename);
   console.log('CSV内容长度:', csvContent.length);
@@ -188,15 +241,15 @@ function downloadCSV(csvContent, filename) {
         if (newWindow) {
           newWindow.document.write(`
             <html>
-              <head><title>实验数据下载</title></head>
+              <head><title>実験データダウンロード</title></head>
               <body>
-                <h2>实验数据</h2>
-                <p>请右键点击下方链接并选择"另存为"来下载数据：</p>
+                <h2>実験データ</h2>
+                <p>下のリンクを右クリックして「名前を付けて保存」を選択してデータをダウンロードしてください：</p>
                 <a href="data:text/csv;charset=utf-8,${encodeURIComponent(csvContent)}" download="${filename}">
-                  点击下载 ${filename}
+                  ${filename}をダウンロード
                 </a>
                 <br><br>
-                <button onclick="window.close()">关闭窗口</button>
+                <button onclick="window.close()">ウィンドウを閉じる</button>
               </body>
             </html>
           `);
@@ -218,13 +271,34 @@ function downloadCSV(csvContent, filename) {
 function convertToCSV(data) {
   if (!Array.isArray(data) || data.length === 0) return '';
 
-  // 过滤掉 null/undefined/空对象 的记录
+  // 过滤掉 null/undefined/空对象 的记录，但保留问卷数据
   const sanitized = data.filter(row => row && typeof row === 'object' && Object.keys(row).length > 0);
   if (sanitized.length === 0) return '';
 
+  // 为每条记录添加作弊信息和实验条件
+  const enhancedData = sanitized.map(row => {
+    const enhanced = {
+      ...row,
+      isCheat: cheatInfo.isCheat,
+      cheatTrial: cheatInfo.cheatTrial,
+      cheatMethod: cheatInfo.cheatMethod,
+      experimentCondition: 'Winner'
+    };
+    
+    // 如果是Likert问卷数据，添加特殊标记
+    if (row.trial_type === 'survey-likert') {
+      enhanced.survey_type = 'winner_advice_trust_rating';
+      enhanced.survey_question = '上述胜利者建议的可信度评价';
+      enhanced.survey_response = row.response ? row.response.Q0 : null;
+      enhanced.survey_scale = '7-point Likert (1=完全不可信, 7=完全可信)';
+    }
+    
+    return enhanced;
+  });
+
   // 合并所有字段，得到完整列集合（避免仅以第一行作为列头导致字段缺失）
   const headerSet = new Set();
-  sanitized.forEach(row => {
+  enhancedData.forEach(row => {
     Object.keys(row).forEach(k => headerSet.add(k));
   });
   const headers = Array.from(headerSet);
@@ -233,7 +307,7 @@ function convertToCSV(data) {
   const csvHeader = headers.join(',');
 
   // 生成CSV行
-  const csvRows = sanitized.map(row => {
+  const csvRows = enhancedData.map(row => {
     return headers.map(header => {
       const value = row[header];
       if (value === null || value === undefined) return '';
@@ -248,35 +322,148 @@ function convertToCSV(data) {
   return [csvHeader, ...csvRows].join('\n');
 }
 
-// ========== 注释掉：服务器作弊报告功能 ==========
-/*
-function reportCheatToServer(eventType, extra = {}) {
-  try {
-    fetch(CHEAT_REPORT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prolific_pid: prolificPID,
-        timestamp: new Date().toISOString(),
-        event_type: eventType,
-        user_agent: navigator.userAgent,
-        experiment_start: experimentStartTime,
-        ...extra
-      })
-    }).catch(() => {});
-  } catch (_) {}
-}
-*/
 
-function abortExperimentDueToCheat(reason) {
+// ========== 新增：sakura服务器数据上传功能 ==========
+function uploadExperimentDataToServer() {
+  console.log('开始上传实验数据到sakura服务器...');
+  
+  try {
+    // 获取所有实验数据
+    const allData = jsPsych.data.get().values();
+    console.log('获取到所有数据，共', allData.length, '条记录');
+    
+    // 过滤掉练习数据，保留正式实验数据和问卷数据
+    const formalData = allData.filter(trial => 
+      !trial.is_practice || 
+      trial.trial_type === 'survey-likert' || 
+      trial.trial_type === 'survey-text' || 
+      trial.trial_type === 'survey-multi-choice' || 
+      trial.trial_type === 'survey-multi-select'
+    );
+    console.log('过滤后的正式实验数据和问卷数据，共', formalData.length, '条记录');
+    
+    // 检查是否包含问卷数据
+    const likertData = formalData.filter(trial => trial.trial_type === 'survey-likert');
+    console.log('包含Likert问卷数据，共', likertData.length, '条记录');
+    
+    if (formalData.length === 0) {
+      console.warn('没有找到正式实验数据，上传所有数据');
+      // 如果没有正式数据，上传所有数据
+      return uploadDataToServer(allData, 'all_experiment_data');
+    }
+    
+    // 上传正式实验数据和问卷数据
+    return uploadDataToServer(formalData, 'formal_experiment_data_with_survey');
+    
+  } catch (error) {
+    console.error('上传实验数据时出错:', error);
+    return Promise.reject(error);
+  }
+}
+
+// ========== 修改：数据上传到 sakura 的 PHP，由其写入外部 MySQL ==========
+function uploadDataToServer(data, dataType) {
+  return new Promise((resolve, reject) => {
+    try {
+      // 为每条数据添加作弊信息和实验条件
+      const enhancedData = data.map(row => {
+        return {
+          ...row,
+          isCheat: cheatInfo.isCheat,
+          cheatTrial: cheatInfo.cheatTrial,
+          cheatMethod: cheatInfo.cheatMethod,
+          experimentCondition: 'Winner'
+        };
+      });
+      
+      // 准备表单数据，便于 PHP 使用 $_POST 读取并写入外部 MySQL
+      const form = new URLSearchParams();
+      form.set('prolific_pid', prolificPID);
+      form.set('experiment_start', experimentStartTime);
+      form.set('data_type', dataType);
+      form.set('experiment_data', JSON.stringify(enhancedData));
+      form.set('timestamp', new Date().toISOString());
+      form.set('user_agent', navigator.userAgent);
+      form.set('total_trials', String(enhancedData.length));
+      form.set('experiment_version', 'study2_winner_condition');
+      form.set('browser_language', navigator.language || '');
+      form.set('browser_platform', navigator.platform || '');
+      form.set('suggested_file_name', `winner_${prolificPID || 'NO_PID'}_${Date.now()}.json`);
+      
+      // 添加作弊信息到表单
+      form.set('is_cheat', String(cheatInfo.isCheat));
+      form.set('cheat_trial', String(cheatInfo.cheatTrial || ''));
+      form.set('cheat_method', String(cheatInfo.cheatMethod || ''));
+      
+      // 添加实验条件标识
+      form.set('experiment_condition', 'Winner');
+
+      console.log('准备上传数据到:', FILE_UPLOAD_URL);
+      console.log('数据条数:', enhancedData.length);
+      console.log('作弊信息:', cheatInfo);
+
+      // 发送到 save_data.php，由其负责将数据写入外部 MySQL
+      fetch(FILE_UPLOAD_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+        body: form.toString()
+      })
+      .then(response => {
+        console.log('服务器响应状态:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`服务器错误: ${response.status} ${response.statusText}`);
+        }
+        // 优先尝试解析 JSON，其次回退到纯文本
+        const contentType = response.headers.get('Content-Type') || '';
+        if (contentType.includes('application/json')) return response.json();
+        return response.text();
+      })
+      .then(result => {
+        console.log('数据上传成功:', result);
+        // 兼容两种返回：JSON 或 纯文本
+        if (typeof result === 'object' && result) {
+          if (result.success) return resolve(result);
+          if (typeof result.message === 'string' && /success|成功/i.test(result.message)) {
+            return resolve({ success: true, message: result.message });
+          }
+          throw new Error('服务器返回JSON但未包含成功标记');
+        }
+        if (typeof result === 'string' && /success|成功/i.test(result)) {
+          return resolve({ success: true, message: result });
+        }
+        throw new Error('PHP处理失败: ' + String(result));
+      })
+      .catch(error => {
+        console.error('数据上传失败:', error);
+        reject(error);
+      });
+      
+    } catch (error) {
+      console.error('准备上传数据时出错:', error);
+      reject(error);
+    }
+  });
+}
+
+function abortExperimentDueToCheat(reason, currentTrialIndex = null) {
   if (cheatDetected) return;
   cheatDetected = true;
-  try {
-    jsPsych.data.addProperties({ cheatDetected: true, cheatReason: reason });
-  } catch (_) {}
   
-  // ========== 注释掉：服务器作弊报告 ==========
-  // reportCheatToServer('cheat_detected', { reason });
+  // 更新作弊信息
+  cheatInfo.isCheat = 2; // 2表示作弊
+  cheatInfo.cheatTrial = currentTrialIndex || (jsPsych.data.get().values().length + 1);
+  cheatInfo.cheatMethod = reason;
+  
+  try {
+    jsPsych.data.addProperties({ 
+      cheatDetected: true, 
+      cheatReason: reason,
+      isCheat: cheatInfo.isCheat,
+      cheatTrial: cheatInfo.cheatTrial,
+      cheatMethod: cheatInfo.cheatMethod
+    });
+  } catch (_) {}
   
   try {
     jsPsych.endExperiment(`
@@ -290,26 +477,36 @@ function abortExperimentDueToCheat(reason) {
   }
 }
 
-// 键盘组合检测：F12、Ctrl+U、Ctrl+Shift+I/J/C
-window.addEventListener('keydown', function(e) {
-  const key = (e.key || '').toUpperCase();
-  if (key === 'F12' || (e.ctrlKey && !e.shiftKey && key === 'U') || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(key))) {
-    e.preventDefault();
-    abortExperimentDueToCheat(`key:${key}`);
-  }
-}, true);
+// 键盘组合检测：F12、Ctrl+U、Ctrl+Shift+I/J/C（调试模式禁用）
+if (!DEBUG_MODE) {
+  window.addEventListener('keydown', function(e) {
+    const key = (e.key || '').toUpperCase();
+    if (key === 'F12' || (e.ctrlKey && !e.shiftKey && key === 'U') || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(key))) {
+      e.preventDefault();
+      const currentTrialIndex = jsPsych.data.get().values().filter(trial => trial.trial_type === 'participant').length + 1;
+      abortExperimentDueToCheat(`key:${key}`, currentTrialIndex);
+    }
+  }, true);
+} else {
+  console.warn('[DEBUG] 键盘反作弊检测已禁用');
+}
 
-// 简易DevTools开启检测（尺寸差异法）
-let lastDevtoolsState = false;
-setInterval(() => {
-  if (cheatDetected) return;
-  const threshold = 160;
-  const devtoolsLike = Math.abs(window.outerWidth - window.innerWidth) > threshold || Math.abs(window.outerHeight - window.innerHeight) > threshold;
-  if (devtoolsLike && !lastDevtoolsState) {
-    lastDevtoolsState = true;
-    abortExperimentDueToCheat('devtools_open');
-  }
-}, 1000);
+// 简易DevTools开启检测（尺寸差异法）（调试模式禁用）
+if (!DEBUG_MODE) {
+  let lastDevtoolsState = false;
+  setInterval(() => {
+    if (cheatDetected) return;
+    const threshold = 160;
+    const devtoolsLike = Math.abs(window.outerWidth - window.innerWidth) > threshold || Math.abs(window.outerHeight - window.innerHeight) > threshold;
+    if (devtoolsLike && !lastDevtoolsState) {
+      lastDevtoolsState = true;
+      const currentTrialIndex = jsPsych.data.get().values().filter(trial => trial.trial_type === 'participant').length + 1;
+      abortExperimentDueToCheat('devtools_open', currentTrialIndex);
+    }
+  }, 1000);
+} else {
+  console.warn('[DEBUG] DevTools 检测已禁用');
+}
 
 // ========== 3. 試行表の読み込み ==========
 let practiceTrials = [];
@@ -323,11 +520,28 @@ Papa.parse(PRACTICE_TRIALS_XLSX_PATH, {
   header: true,
   complete: function(practiceResults) {
     practiceTrials = practiceResults.data;
+    console.log('Loaded practice trials data:', practiceTrials.length, 'trials');
+    
+    // 检查练习数据完整性
+    if (!practiceTrials || practiceTrials.length === 0) {
+      console.error('No practice trials data loaded');
+      showError('练习数据加载失败', '无法加载练习数据，请检查网络连接');
+      return;
+    }
     Papa.parse(TRIALS_XLSX_PATH, {
       download: true,
       header: true,
       complete: function(results) {
         trials = results.data;
+        console.log('Loaded trials data:', trials.length, 'trials');
+        
+        // 检查数据完整性
+        if (!trials || trials.length === 0) {
+          console.error('No trials data loaded');
+          showError('数据加载失败', '无法加载实验数据，请检查网络连接');
+          return;
+        }
+        
         // 假设trials已经有120个元素
         const BLOCK_SIZE = 30;
         const BLOCK_NUM = 4;
@@ -350,8 +564,15 @@ Papa.parse(PRACTICE_TRIALS_XLSX_PATH, {
         }
 
         for (let block = 0; block < BLOCK_NUM; block++) {
-          // 生成21个'1'和9个'2'的正确线索图片分配
-          let correctImages = Array(9).fill('1').concat(Array(21).fill('2'));
+          // 正确线索图片分配：
+          // 第1块（前30试次）：'1'中奖21次，'2'中奖9次
+          // 之后每块（每30试次）：'1'中奖12次，'2'中奖18次
+          let correctImages;
+          if (block === 0) {
+            correctImages = Array(21).fill('1').concat(Array(9).fill('2'));
+          } else {
+            correctImages = Array(9).fill('1').concat(Array(21).fill('2'));
+          }
           // 随机打乱
           for (let i = correctImages.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -369,15 +590,65 @@ Papa.parse(PRACTICE_TRIALS_XLSX_PATH, {
   }
 });
 
+// 将startExperiment函数定义移到调用之前
 function startExperiment() {
+  // 在组装并运行时间线前，确保 jsPsych 核心与所需插件已就绪
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = false;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('Failed to load ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  function ensureJsPsychReady() {
+    const tasks = [];
+    if (typeof window.initJsPsych === 'undefined') {
+      tasks.push(loadScript('https://unpkg.com/jspsych@7.3.3/dist/jspsych.js'));
+    }
+    return Promise.all(tasks).then(() => {
+      const pluginTasks = [];
+      if (typeof window.jsPsychHtmlKeyboardResponse === 'undefined') {
+        pluginTasks.push(loadScript('https://unpkg.com/jspsych@7.3.3/dist/plugin-html-keyboard-response.js'));
+      }
+      if (typeof window.jsPsychSurveyLikert === 'undefined') {
+        pluginTasks.push(loadScript('https://unpkg.com/jspsych@7.3.3/dist/plugin-survey-likert.js'));
+      }
+      return Promise.all(pluginTasks);
+    });
+  }
+
+  // 若插件尚未可用，则先加载再重入本函数
+  if (typeof window.jsPsychHtmlKeyboardResponse === 'undefined' || typeof window.jsPsychSurveyLikert === 'undefined') {
+    ensureJsPsychReady()
+      .then(() => {
+        if (typeof window.jsPsychHtmlKeyboardResponse === 'undefined') {
+          showError('jsPsych 插件仍不可用', 'jsPsychHtmlKeyboardResponse 未加载');
+          return;
+        }
+        if (typeof window.jsPsychSurveyLikert === 'undefined') {
+          showError('jsPsych 插件仍不可用', 'jsPsychSurveyLikert 未加载');
+          return;
+        }
+        startExperiment();
+      })
+      .catch(err => {
+        showError('加载 jsPsych 依赖失败', err && err.message ? err.message : String(err));
+      });
+    return;
+  }
+
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>练习环节</p>
-        <p>进入练习前，请你先阅读规则的word文档，之后</p>
-        <p>请你通过练习阶段熟悉游戏流程。</p>
-        <p>按空格开始练习p>
+        <p>こちらは練習のセクションです。</p>
+        <p>練習に入る前に、必ず本研究のProlificページに記載された説明をよくお読みください。</p>
+        <p>このセクションを通じて、実験の流れに慣れてください。</p>
+        <p>スペースキーを押して練習を開始してください。</p>
         <!-- TODO: 在这里添加具体的练习指导语 -->
       </div>
     `,
@@ -394,15 +665,15 @@ function startExperiment() {
           <div style='display: flex; justify-content: space-around; width: 600px; margin-bottom: 40px;'>
             <div>
               <img src='${IMAGE_PATH}1.png' style='height: 120px; margin-bottom: 20px;'>
-              <div style='font-size: 24px; color: white;'>图片1 集中型</div>
+              <div style='font-size: 24px; color: white;'>图片1 要素集中型线索（简称集中型）</div>
             </div>
             <div>
               <img src='${IMAGE_PATH}2.png' style='height: 120px; margin-bottom: 20px;'>
-              <div style='font-size: 24px; color: white;'>图片2 分散型</div>
+              <div style='font-size: 24px; color: white;'>图片2 要素分散型线索（简称分散型）</div>
             </div>
           </div>
           <div style='font-size: 20px; color: #ffd966; margin-top: 40px;'>
-            按空格键切换至下一界面
+            スペースキーを押して進んでください。
           </div>
         </div>
       </div>
@@ -418,6 +689,12 @@ function startExperiment() {
 
   for (let i = 0; i < practiceTrialsToUse.length; i++) {
     const trial = practiceTrialsToUse[i];
+    
+    // 安全检查：确保练习试次数据完整
+    if (!trial || !trial.Up_Image || !trial.Down_Image || !trial.Correct_Image) {
+      console.error('Practice trial data is incomplete:', trial);
+      continue; // 跳过这个试次
+    }
     // ====== 被験者試行 ======
     // 画面3：刺激画面 (练习)
     timeline.push({
@@ -444,9 +721,9 @@ function startExperiment() {
       type: jsPsychHtmlKeyboardResponse,
       stimulus: `
         <div style='font-size: 48px; text-align: center;'>
-          <p>你选择哪个</p>
+          <p>どちらに賭けますか？</p>
           <p style='font-size: 28px; margin-top: 40px;'>U=上，N=下</p>
-          <div id='practice-choice-hint' style='display:none; font-size: 22px; margin-top: 24px; color: #ffd966;'>现在请你进行选择。</div>
+          <div id='practice-choice-hint' style='display:none; font-size: 22px; margin-top: 24px; color: #ffd966;'>今、選択してください。（现在请你做出选择）</div>
         </div>
       `,
       choices: "NO_KEYS", // 初始设置为不接受按键
@@ -528,6 +805,12 @@ function startExperiment() {
         data.isCorrect = isCorrect;
         data.scoreChange = scoreChange;
         data.practiceScore = practiceScore;
+        
+        // === 作弊信息 ===
+        data.isCheat = cheatInfo.isCheat;
+        data.cheatTrial = cheatInfo.cheatTrial;
+        data.cheatMethod = cheatInfo.cheatMethod;
+        // ===============
 
         // 清理事件监听器
         if (this.customKeyHandler) {
@@ -556,7 +839,7 @@ function startExperiment() {
       stimulus: function() {
       return`
         <div style='position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center;'>
-          <div style='font-size: 48px;'>你</div>
+          <div style='font-size: 48px;'>あなた</div>
           <div style='height: 100px;'></div>
           <div style='font-size: 48px;'>${practiceScore}</div> <!-- 修改：显示练习分数 -->
         </div>
@@ -574,7 +857,7 @@ function startExperiment() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>练习结束按空格进行正式游戏。</p>
+        <p>練習が終了しました。スペースキーを押して正式実験に進んでください。</p>
         <!-- 这里可以后续自由编辑内容 -->
       </div>
     `,
@@ -614,16 +897,27 @@ function startExperiment() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `
       <div style='font-size: 28px; text-align: center;'>
-        <p>此处为建议环节。</p>
-        <p>来自学习过上次游戏的结果数据的AI的建议：建议选择集中型线索。</p>
-        <p>理由：集中型在上次游戏中，共中奖10500回，而分散型仅中奖4500回，因此，建议选择集中型的图片。
-另外，在集中型出现在屏幕上方的情况中，中奖次数为5258回（分散型在上方的中奖次数为5258次），在集中型出现在屏幕下方的情况中、也有5242回中奖（分散型在这种情况下，中奖次数为5242回），根据以上数据，我认为无论集中型出现在屏幕中的哪里，都比分散型更容易中奖。</p>
-        <p style='font-size: 20px; margin-top: 40px;'>按空格继续。</p>
+        <p>13131</p>
+        <p>理由：選択肢1（集中型）が全体で10500回勝っているのに対し、選択肢2（分散型）は4500回しか勝っていないため、選択肢1が正しい選択肢となる確率が高いことがわかります。
+さらに、選択肢1が上部に表示された場合は、5258回勝つことが多く、選択肢1が下部に表示された場合は、5242回勝っていることから、選択肢1は上部に表示された際に特に有利だと考えられます。一方で、選択肢2は上部に表示された場合は2242回、下部に表示された場合は2258回しか勝っていません。したがって、選択肢1を選ぶことが最も有利であると考えます。</p>
+        <p style='font-size: 20px; margin-top: 40px;'>スペースキーで次へ進みます。</p>
       </div>
     `,
     choices: [' '],
     trial_duration: null,
     css_classes: ['jspsych-content'],
+  });
+
+  // ========== 新增：AI建议可信度评分（使用jsPsychSurveyLikert） ==========
+  timeline.push({
+    type: jsPsychSurveyLikert,
+    questions: [
+      {
+        prompt: '<div style="text-align:center;font-size:22px;font-weight:bold;">上述AI建议的可信度をどの程度評価しますか？（您对上述AI建议的可信度如何评价？）</div>',
+        labels: ['<span class="white">完全不可信</span>', '<span class="white">不同意</span>', '<span class="white">有点不同意</span>', '<span class="white">中立</span>', '<span class="white">有点同意</span>', '<span class="white">同意</span>', '<span class="white">完全可信</span>'],
+        required: true
+      }
+    ]
   });
 
   // ========== 画面2：初期点数 ==========
@@ -642,8 +936,14 @@ function startExperiment() {
   });
 
   // ========== 画面4：主体実験の流れ ==========
-  for (let i = 0; i < 120; i++) {          //修改試行数
+  for (let i = 0; i < 5; i++) {          //修改試行数
     const trial = trials[i % trials.length];
+    
+    // 安全检查：确保trial对象和必要属性存在
+    if (!trial || !trial.Up_Image || !trial.Down_Image || !trial.Correct_Image) {
+      console.error('Trial data is incomplete:', trial);
+      continue; // 跳过这个试次
+    }
     // ====== 被験者試行 ======
     // 画面3：刺激画面
     timeline.push({
@@ -767,13 +1067,18 @@ function startExperiment() {
         data.isCorrect = isCorrect;
         data.scoreChange = scoreChange;
         data.totalScore = totalScore;
-        data.opponentScore = trial.Fake_Score;
 
         // === 随机化参数 ===
         data.Up_Image = trial.Up_Image;           // 刺激界面上方图片
         data.Down_Image = trial.Down_Image;       // 刺激界面下方图片
         data.Correct_Image = trial.Correct_Image; // 反馈界面正确线索图片
         // =================
+        
+        // === 作弊信息 ===
+        data.isCheat = cheatInfo.isCheat;
+        data.cheatTrial = cheatInfo.cheatTrial;
+        data.cheatMethod = cheatInfo.cheatMethod;
+        // ===============
 
         // 清理事件监听器
         if (this.customKeyHandler) {
@@ -812,13 +1117,14 @@ function startExperiment() {
     });
   }
 
-  // ========== 画面7：終了語 ==========
+  // ========== 画面7：感谢画面 ==========
   timeline.push({
     type: jsPsychHtmlKeyboardResponse,
     stimulus: function() {
     return`
       <div style='font-size: 28px; text-align: center;'>
-        <p>お疲れ様でした！スペースキーを押して終了します。</p>
+        <p>お疲れ様でした！</p>
+        <p>ご参加いただきありがとうございました！スペースキーを押して進んでください。</p>
         <p style='font-size: 24px; margin-top: 40px;'>Total Score：${totalScore}pt</p>
       </div>
     `;
@@ -826,24 +1132,12 @@ function startExperiment() {
     choices: [' '],
     trial_duration: null,
     css_classes: ['jspsych-content'],
-  });
-  // ========== 画面8：感谢画面 ==========
-  timeline.push({
-    type: jsPsychHtmlKeyboardResponse,
-    stimulus: `
-      <div style='font-size: 28px; text-align: center;'>
-        <p>ご参加いただきありがとうございました！スペースキーを押して報酬の決済に進んでください。</p>
-      </div>
-    `,
-    choices: [' '],
-    trial_duration: null,
-    css_classes: ['jspsych-content'],
     on_finish: function() {
-      // 未检测到作弊时才下载数据并重定向
+      // 未检测到作弊时才上传数据并重定向
       if (!cheatDetected) {
-        // 显示下载提示和按钮
-        const downloadMessage = document.createElement('div');
-        downloadMessage.style.cssText = `
+        // 显示上传提示
+        const uploadMessage = document.createElement('div');
+        uploadMessage.style.cssText = `
           position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
           background: rgba(0,0,0,0.9); color: white; padding: 30px;
           border-radius: 15px; font-size: 18px; z-index: 10000;
@@ -851,143 +1145,83 @@ function startExperiment() {
           min-width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         `;
         
-        const downloadButton = document.createElement('button');
-        downloadButton.style.cssText = `
-          background: #4CAF50; color: white; border: none; padding: 12px 24px;
-          font-size: 16px; border-radius: 6px; cursor: pointer; margin: 15px 5px;
-          transition: background 0.3s;
-        `;
-        downloadButton.textContent = '下载实验数据';
-        
-        const skipButton = document.createElement('button');
-        skipButton.style.cssText = `
-          background: #666; color: white; border: none; padding: 12px 24px;
-          font-size: 16px; border-radius: 6px; cursor: pointer; margin: 15px 5px;
-          transition: background 0.3s;
-        `;
-        skipButton.textContent = '跳过下载';
-        
-        downloadMessage.innerHTML = `
+        uploadMessage.innerHTML = `
           <div style="margin-bottom: 20px;">
-            <h3 style="margin: 0 0 10px 0; color: #4CAF50;">实验完成！</h3>
-            <p style="margin: 0; color: #ccc;">请点击下方按钮下载您的实验数据</p>
+            <h3 style="margin: 0 0 10px 0; color: #4CAF50;">実験完了！</h3>
+            <p style="margin: 0; color: #ccc;">実験データをサーバーにアップロードしています...</p>
           </div>
         `;
         
-        downloadMessage.appendChild(downloadButton);
-        downloadMessage.appendChild(skipButton);
-        document.body.appendChild(downloadMessage);
+        // 显示上传进度
+        const progressDiv = document.createElement('div');
+        progressDiv.style.cssText = 'margin-top: 15px; font-size: 14px; color: #ccc;';
+        progressDiv.innerHTML = 'データを準備中...';
+        uploadMessage.appendChild(progressDiv);
         
-        // 下载按钮事件
-        downloadButton.addEventListener('click', function() {
-          downloadButton.textContent = '正在下载...';
-          downloadButton.disabled = true;
-          downloadButton.style.background = '#666';
-          
-          // 显示下载进度
-          const progressDiv = document.createElement('div');
-          progressDiv.style.cssText = 'margin-top: 15px; font-size: 14px; color: #ccc;';
-          progressDiv.innerHTML = '正在准备数据...';
-          downloadMessage.appendChild(progressDiv);
-          
-          try {
-            // 获取实验数据
-            const allData = jsPsych.data.get().values();
-            progressDiv.innerHTML = '正在处理数据...';
+        document.body.appendChild(uploadMessage);
+        
+        // 自动执行数据上传
+        uploadExperimentDataToServer()
+          .then(result => {
+            progressDiv.innerHTML = 'データのアップロードが成功しました！';
+            progressDiv.style.color = '#4CAF50';
             
-            // 过滤正式实验数据
-            const formalData = allData.filter(trial => !trial.is_practice);
-            progressDiv.innerHTML = `找到 ${formalData.length} 条实验数据，正在生成CSV...`;
-            
-            // 转换为CSV
-            const csvContent = convertToCSV(formalData);
-            progressDiv.innerHTML = '正在下载文件...';
-            
-            // 执行下载
-            const downloadSuccess = downloadCSV(csvContent, OUTPUT_XLSX_NAME);
-            
-            if (downloadSuccess) {
-              progressDiv.innerHTML = '下载成功！';
-              progressDiv.style.color = '#4CAF50';
-              
+            setTimeout(() => {
+              uploadMessage.innerHTML = `
+                <div style="text-align: center; color: #4CAF50;">
+                  <h3>✓ アップロード完了！</h3>
+                  <p>データがサーバーに正常に保存されました</p>
+                  <p style="font-size: 14px; color: #ccc; margin-top: 10px;">完了ページに移動しています...</p>
+                </div>
+              `;
               setTimeout(() => {
-                downloadMessage.innerHTML = `
-                  <div style="text-align: center; color: #4CAF50;">
-                    <h3>✓ 下载完成！</h3>
-                    <p>文件已保存到您的下载文件夹</p>
-                    <p style="font-size: 14px; color: #ccc; margin-top: 10px;">即将跳转到完成页面...</p>
-                  </div>
-                `;
-                setTimeout(() => {
-                  window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
-                }, 2000);
-              }, 1000);
-            } else {
-              throw new Error('下载函数返回失败');
-            }
-            
-          } catch (error) {
-            console.error('下载过程中出错:', error);
-            progressDiv.innerHTML = '下载失败';
+                window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
+              }, 2000);
+            }, 1000);
+          })
+          .catch(error => {
+            console.error('アップロード中にエラーが発生しました:', error);
+            progressDiv.innerHTML = 'アップロードに失敗しました';
             progressDiv.style.color = '#ff6b6b';
             
-            // 显示详细错误信息
+            // 本地下载数据
+            try {
+              downloadExperimentData();
+            } catch (downloadError) {
+              console.error('データのダウンロードにも失敗しました:', downloadError);
+            }
+            
+            // 显示错误信息和解决方案
             const errorDetails = document.createElement('div');
             errorDetails.style.cssText = 'margin-top: 10px; font-size: 12px; color: #ff6b6b; background: rgba(255,107,107,0.1); padding: 10px; border-radius: 5px;';
             errorDetails.innerHTML = `
-              <strong>错误详情：</strong><br>
-              ${error.message || '未知错误'}<br><br>
-              <strong>解决方案：</strong><br>
-              1. 检查浏览器是否允许下载文件<br>
-              2. 尝试关闭弹窗阻止程序<br>
-              3. 检查下载文件夹权限<br>
-              4. 如果问题持续，请联系实验管理员
+              <strong>エラー詳細：</strong><br>
+              ${error.message || '不明なエラー'}<br><br>
+              <strong>解決方法：</strong><br>
+              1. ネットワーク接続を確認してください<br>
+              2. ページを更新して再試行してください<br>
+              3. 問題が続く場合は、実験管理者に連絡してください<br>
+              4. データは自動的にダウンロードされました。研究者に送信してください
             `;
-            downloadMessage.appendChild(errorDetails);
+            uploadMessage.appendChild(errorDetails);
             
-            // 添加重试按钮
-            const retryButton = document.createElement('button');
-            retryButton.textContent = '重试下载';
-            retryButton.style.cssText = `
-              background: #ff6b6b; color: white; border: none; padding: 8px 16px;
-              font-size: 14px; border-radius: 4px; cursor: pointer; margin: 10px 5px;
+            // 添加继续按钮
+            const continueButton = document.createElement('button');
+            continueButton.textContent = '続行';
+            continueButton.style.cssText = `
+              background: #4CAF50; color: white; border: none; padding: 12px 24px;
+              font-size: 16px; border-radius: 6px; cursor: pointer; margin: 15px 5px;
+              transition: background 0.3s;
             `;
-            retryButton.addEventListener('click', () => {
-              downloadMessage.innerHTML = `
-                <div style="margin-bottom: 20px;">
-                  <h3 style="margin: 0 0 10px 0; color: #4CAF50;">实验完成！</h3>
-                  <p style="margin: 0; color: #ccc;">请点击下方按钮下载您的实验数据</p>
-                </div>
-              `;
-              downloadMessage.appendChild(downloadButton);
-              downloadMessage.appendChild(skipButton);
-            });
-            downloadMessage.appendChild(retryButton);
-            
-            // 添加跳过按钮
-            const skipButton2 = document.createElement('button');
-            skipButton2.textContent = '跳过下载';
-            skipButton2.style.cssText = `
-              background: #666; color: white; border: none; padding: 8px 16px;
-              font-size: 14px; border-radius: 4px; cursor: pointer; margin: 10px 5px;
-            `;
-            skipButton2.addEventListener('click', () => {
+            continueButton.addEventListener('click', () => {
               window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
             });
-            downloadMessage.appendChild(skipButton2);
-          }
-        });
-        
-        // 跳过按钮事件
-        skipButton.addEventListener('click', function() {
-          window.location.href = PROLIFIC_COMPLETION_URL + "&PROLIFIC_PID=" + prolificPID;
-        });
-        
-        // 按钮悬停效果
-        downloadButton.addEventListener('mouseenter', () => downloadButton.style.background = '#45a049');
-        downloadButton.addEventListener('mouseleave', () => downloadButton.style.background = '#4CAF50');
-        skipButton.addEventListener('mouseenter', () => skipButton.style.background = '#555');
-        skipButton.addEventListener('mouseleave', () => skipButton.style.background = '#666');
+            uploadMessage.appendChild(continueButton);
+            
+            // 按钮悬停效果
+            continueButton.addEventListener('mouseenter', () => continueButton.style.background = '#45a049');
+            continueButton.addEventListener('mouseleave', () => continueButton.style.background = '#4CAF50');
+          });
       }
     }
   });
